@@ -1,0 +1,510 @@
+/* ==========================================================================
+   HEALTHYSURE CORPORATE RENEWAL INTELLIGENCE
+   Design System: Microsoft Fluent 2 + Healthysure Brand Theme (#11a387)
+   Website: https://www.healthysure.in
+   ========================================================================== */
+
+:root {
+  /* Microsoft Fluent Neutral Palette */
+  --neutral-dark: #201f1e;
+  --neutral-primary: #323130;
+  --neutral-primary-alt: #3b3a39;
+  --neutral-secondary: #605e5c;
+  --neutral-tertiary: #a19f9d;
+  --neutral-tertiary-alt: #c8c6c4;
+  --neutral-quaternary-alt: #e1dfdd;
+  --neutral-light: #edebe9;
+  --neutral-lighter: #f3f2f1;
+  --neutral-lighter-alt: #faf9f8;
+  --white: #ffffff;
+
+  /* Healthysure Official Brand Identity (#11a387) */
+  --fluent-blue: #11a387;
+  --fluent-blue-hover: #0e8770;
+  --fluent-blue-pressed: #0a6352;
+  --fluent-blue-light: #e7f6f3;
+  --fluent-blue-border: #a1ded3;
+  --fluent-blue-glow: rgba(17, 163, 135, 0.25);
+
+  /* Elevation Shadows (Microsoft Fluent 2) */
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.04);
+  --elevation-4: 0 1.6px 3.6px rgba(0, 0, 0, 0.13), 0 0.3px 0.9px rgba(0, 0, 0, 0.1);
+  --elevation-8: 0 3.2px 7.2px rgba(0, 0, 0, 0.13), 0 0.6px 1.8px rgba(0, 0, 0, 0.1);
+  --elevation-16: 0 6.4px 14.4px rgba(0, 0, 0, 0.13), 0 0.2px 1.8px rgba(0, 0, 0, 0.1);
+  --elevation-28: 0 14px 28px rgba(0, 0, 0, 0.24), 0 0 8px rgba(0, 0, 0, 0.12);
+}
+
+body {
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+  color: var(--neutral-primary);
+  background-color: var(--neutral-lighter-alt);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fluent Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--neutral-tertiary-alt);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neutral-tertiary);
+}
+
+/* Fluent Card / Surfaces */
+.fluent-card {
+  background: var(--white);
+  border: 1px solid var(--neutral-quaternary-alt);
+  border-radius: 4px;
+  box-shadow: var(--elevation-1);
+}
+
+/* Healthysure Suite Bar */
+.fluent-suitebar {
+  background-color: #11a387;
+  color: var(--white);
+  height: 48px;
+}
+
+/* Command Bar */
+.fluent-commandbar {
+  background-color: var(--white);
+  border-bottom: 1px solid var(--neutral-quaternary-alt);
+  min-height: 44px;
+}
+
+/* Fluent Buttons */
+.fluent-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.fluent-btn-default {
+  background: var(--white);
+  color: var(--neutral-primary);
+  border-color: var(--neutral-quaternary-alt);
+}
+.fluent-btn-default:hover {
+  background: var(--neutral-lighter);
+  border-color: var(--neutral-tertiary);
+}
+
+.fluent-btn-primary {
+  background: var(--fluent-blue);
+  color: var(--white);
+  border-color: var(--fluent-blue);
+}
+.fluent-btn-primary:hover {
+  background: var(--fluent-blue-hover);
+  border-color: var(--fluent-blue-hover);
+}
+.fluent-btn-primary:active {
+  background: var(--fluent-blue-pressed);
+}
+
+.fluent-btn-subtle {
+  background: transparent;
+  color: var(--neutral-primary);
+  border-color: transparent;
+}
+.fluent-btn-subtle:hover {
+  background: var(--neutral-lighter);
+}
+
+.fluent-btn-copilot {
+  background: linear-gradient(135deg, #e7f6f3 0%, #f3f0fc 100%);
+  color: #0e8770;
+  border: 1px solid #b2e3da;
+  font-weight: 600;
+}
+.fluent-btn-copilot:hover {
+  background: linear-gradient(135deg, #d3f0ea 0%, #e8e2fa 100%);
+  border-color: #11a387;
+}
+
+/* Fluent Form Controls */
+.fluent-input {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--neutral-primary);
+  background-color: var(--white);
+  border: 1px solid var(--neutral-quaternary-alt);
+  border-bottom: 2px solid var(--neutral-secondary);
+  border-radius: 4px 4px 0 0;
+  outline: none;
+  transition: all 0.15s ease;
+}
+.fluent-input:hover {
+  border-color: var(--neutral-tertiary);
+  border-bottom-color: var(--neutral-primary);
+}
+.fluent-input:focus {
+  border-bottom: 2px solid var(--fluent-blue);
+  background-color: var(--white);
+}
+
+.fluent-select {
+  height: 32px;
+  padding: 0 28px 0 10px;
+  font-size: 13px;
+  color: var(--neutral-primary);
+  background-color: var(--white);
+  border: 1px solid var(--neutral-quaternary-alt);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23605e5c%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.fluent-select:hover {
+  border-color: var(--neutral-tertiary);
+}
+.fluent-select:focus {
+  border-color: var(--fluent-blue);
+  box-shadow: 0 0 0 1px var(--fluent-blue);
+}
+
+/* Fluent Grid / Data Table */
+.fluent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fluent-table th {
+  background-color: var(--neutral-lighter-alt);
+  color: var(--neutral-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--neutral-quaternary-alt);
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.fluent-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--neutral-light);
+  color: var(--neutral-primary);
+  vertical-align: middle;
+}
+
+.fluent-table tr:hover td {
+  background-color: #f8faf9;
+}
+
+.fluent-table tr.selected td {
+  background-color: var(--fluent-blue-light) !important;
+}
+
+/* Fluent Status Badges */
+.fluent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  border: 1px solid transparent;
+}
+
+.badge-new {
+  background-color: var(--neutral-lighter);
+  color: var(--neutral-secondary);
+  border-color: var(--neutral-quaternary-alt);
+}
+.badge-ai-enriched {
+  background-color: #f3f0fc;
+  color: #5c2d91;
+  border-color: #d1c4e9;
+}
+.badge-contacted {
+  background-color: #e7f6f3;
+  color: #0e8770;
+  border-color: #b2e3da;
+}
+.badge-meeting {
+  background-color: #fff4ce;
+  color: #8a3707;
+  border-color: #fed9cc;
+}
+.badge-converted {
+  background-color: #dff6dd;
+  color: #107c41;
+  border-color: #a8ebb0;
+}
+.badge-lost {
+  background-color: #fde7e9;
+  color: #a80000;
+  border-color: #f49ca5;
+}
+
+/* Data Source Category Badges */
+.badge-src-insurer {
+  background-color: #eff6fc;
+  color: #005a9e;
+  border-color: #c7e0f4;
+}
+.badge-src-tpa {
+  background-color: #fff7ed;
+  color: #c2410c;
+  border-color: #fed7aa;
+}
+.badge-src-claimtech {
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+.badge-src-channel {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.badge-src-team {
+  background-color: #fefce8;
+  color: #854d0e;
+  border-color: #fef08a;
+}
+.badge-src-broker {
+  background-color: #ecfeff;
+  color: #0e7490;
+  border-color: #a5f3fc;
+}
+.badge-src-other {
+  background-color: #f3f2f1;
+  color: #605e5c;
+  border-color: #e1dfdd;
+}
+
+/* Company Size Badges (Small <50, Medium 50-200, Large >200) */
+.badge-size-small {
+  background-color: #f3f2f1;
+  color: #605e5c;
+  border-color: #e1dfdd;
+}
+.badge-size-medium {
+  background-color: #e7f6f3;
+  color: #0e8770;
+  border-color: #b2e3da;
+}
+.badge-size-large {
+  background-color: #f3f0fc;
+  color: #5c2d91;
+  border-color: #d1c4e9;
+  font-weight: 700;
+}
+
+/* Fluent Pill Filters */
+.fluent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 16px;
+  background-color: var(--white);
+  color: var(--neutral-primary);
+  border: 1px solid var(--neutral-quaternary-alt);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+.fluent-pill:hover {
+  background-color: var(--neutral-lighter);
+  border-color: var(--neutral-tertiary);
+}
+.fluent-pill.active {
+  background-color: var(--fluent-blue);
+  color: var(--white);
+  border-color: var(--fluent-blue);
+}
+
+/* Fluent Tabs */
+.fluent-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--neutral-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.fluent-tab:hover {
+  color: var(--neutral-primary);
+}
+.fluent-tab.active {
+  color: var(--fluent-blue);
+  border-bottom-color: var(--fluent-blue);
+  font-weight: 600;
+}
+
+/* Fluent Modal */
+.fluent-modal-overlay {
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+.fluent-modal-content {
+  background-color: var(--white);
+  border-radius: 8px;
+  box-shadow: var(--elevation-28);
+  border: 1px solid var(--neutral-quaternary-alt);
+}
+
+/* 9-Dots App Launcher Flyout */
+.fluent-app-launcher-popover {
+  position: absolute;
+  top: 48px;
+  left: 8px;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid var(--neutral-quaternary-alt);
+  border-radius: 8px;
+  box-shadow: var(--elevation-28);
+  z-index: 100;
+}
+
+/* Animations */
+@keyframes fluentFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fluent-animate-in {
+  animation: fluentFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Department Badges (HR, Finance, Procurement, Executive) */
+.dept-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+.dept-badge-hr {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+}
+.dept-badge-finance {
+  background-color: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.dept-badge-procurement {
+  background-color: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+.dept-badge-exec {
+  background-color: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+.dept-badge-general {
+  background-color: #f3f2f1;
+  color: #605e5c;
+  border: 1px solid #e1dfdd;
+}
+
+/* 1-Click Outreach Action Buttons */
+.outreach-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+  cursor: pointer;
+}
+.outreach-btn:hover {
+  transform: translateY(-1px);
+}
+.outreach-btn-call {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+.outreach-btn-call:hover {
+  background-color: #dcfce7;
+}
+.outreach-btn-whatsapp {
+  background-color: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
+}
+.outreach-btn-whatsapp:hover {
+  background-color: #d1fae5;
+}
+.outreach-btn-email {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+.outreach-btn-email:hover {
+  background-color: #dbeafe;
+}
+.outreach-btn-meeting {
+  background-color: #fefce8;
+  color: #ca8a04;
+  border-color: #fef08a;
+}
+.outreach-btn-meeting:hover {
+  background-color: #fef9c3;
+}
+
+/* ==================== BD CENTRAL REPOSITORY AUTH OVERLAY ==================== */
+#bdAuthOverlay {
+  display: flex !important;
+  opacity: 1;
+}
+
+#bdAuthOverlay.auth-unlocked {
+  display: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.shake-card {
+  animation: authShake 0.4s ease-in-out;
+}
+
+

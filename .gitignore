@@ -1,0 +1,12 @@
+# Logs
+*.log
+server_err.log
+edge_console.txt
+
+# OS & Environment
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp

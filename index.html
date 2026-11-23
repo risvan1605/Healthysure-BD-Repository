@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Healthysure | BD Central Repository</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2311a387'><path d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/></svg>">
+  
+  <!-- Ensure login page is always active on visit & clear legacy admin hash -->
+  <script>
+    try {
+      localStorage.removeItem('hs_bd_auth');
+      sessionStorage.removeItem('hs_bd_auth');
+      document.documentElement.classList.remove('bd-authenticated');
+      if (localStorage.getItem('hs_admin_password_hash') === 'ffcfa9389f6a158158c4ea27c5bf559e7fe6569476f8f4112bf0408c646a3d58') {
+        localStorage.removeItem('hs_admin_password_hash');
+        localStorage.removeItem('hs_admin_password_b64');
+      }
+    } catch(e){}
+  </script>
+
+  <!-- Tailwind CSS & Lucide Icons & SheetJS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="app.css?v=4.2">
+</head>
+<body class="bg-[#faf9f8] text-[#323130] antialiased min-h-screen flex flex-col selection:bg-[#e7f6f3] selection:text-[#0e8770]">
+
+  <!-- ==================== BD CENTRAL REPOSITORY AUTH OVERLAY ==================== -->
+  <div id="bdAuthOverlay" class="fixed inset-0 z-[99999] flex items-center justify-center p-4 transition-opacity duration-300" style="background-color: #095244;">
+    <div id="bdAuthCard" class="w-full max-w-[420px] bg-white rounded-[26px] p-8 sm:p-9 shadow-2xl relative select-none">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-2.5 mb-6">
+        <div class="w-9 h-9 rounded-xl bg-[#11a387] flex items-center justify-center text-white shadow-xs">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <span class="text-xl font-bold tracking-tight text-[#111827]">Healthysure</span>
+      </div>
+
+      <!-- Heading -->
+      <div class="mb-6">
+        <h1 class="text-[25px] font-bold text-[#111827] tracking-tight leading-tight">BD Central Repository</h1>
+        <p class="text-[13px] text-[#6b7280] mt-1 font-normal">Enter your credentials to continue</p>
+      </div>
+
+      <!-- Auth Form -->
+      <form id="bdLoginForm" onsubmit="handleBDLogin(event)" class="space-y-4">
+        <!-- Error Notification Banner -->
+        <div id="bdLoginError" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
+          <svg class="w-4 h-4 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="bdLoginErrorText">Invalid Login ID or Password.</span>
+        </div>
+
+        <!-- Login ID Field -->
+        <div>
+          <label for="bdLoginId" class="block text-xs font-semibold text-[#374151] mb-1.5">Login ID</label>
+          <input 
+            type="text" 
+            id="bdLoginId" 
+            name="username"
+            autocomplete="username"
+            placeholder="Enter Login ID" 
+            required 
+            class="w-full px-4 py-3 rounded-xl text-sm text-[#111827] bg-[#F4FAF8] border border-[#d1e7e0] focus:outline-none focus:border-[#11a387] focus:ring-2 focus:ring-[#11a387]/20 transition-all placeholder:text-[#9ca3af]"
+          >
+        </div>
+
+        <!-- Password Field -->
+        <div>
+          <label for="bdLoginPassword" class="block text-xs font-semibold text-[#374151] mb-1.5">Password</label>
+          <div class="relative">
+            <input 
+              type="password" 
+              id="bdLoginPassword" 
+              name="password"
+              autocomplete="current-password"
+              placeholder="••••••••" 
+              required 
+              class="w-full px-4 py-3 rounded-xl text-sm text-[#111827] bg-[#F4FAF8] border border-[#d1e7e0] focus:outline-none focus:border-[#11a387] focus:ring-2 focus:ring-[#11a387]/20 transition-all placeholder:text-[#9ca3af] tracking-widest"
+            >
+            <button 
+              type="button" 
+              onclick="togglePasswordVisibility()" 
+              class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#9ca3af] hover:text-[#4b5563] transition-colors"
+              title="Toggle password visibility"
+            >
+              <svg id="eyeIconOpen" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="eyeIconClosed" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button 
+          type="submit" 
+          id="bdLoginBtn"
+          class="w-full py-3.5 px-4 rounded-xl font-semibold text-sm text-white shadow-sm hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2 mt-3 cursor-pointer" 
+          style="background-color: #095244;"
+        >
+          <span>Unlock Repository</span>
+        </button>
+
+        <div class="pt-2 text-center">
+          <button type="button" onclick="openLoginPasswordChangeModal()" class="text-xs text-[#095244] hover:underline font-medium">
+            Change Portal Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== CHANGE PORTAL LOGIN PASSWORD MODAL (ON LOGIN SCREEN) ==================== -->
+  <div id="loginPassModal" class="fixed inset-0 z-[100000] flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-sm w-full p-6 space-y-4 fluent-animate-in bg-white rounded-2xl shadow-2xl">
+      <div class="flex items-center justify-between pb-2 border-b border-[#edebe9]">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-[#e7f6f3] text-[#11a387] flex items-center justify-center font-bold">
+            <i data-lucide="key" class="w-4 h-4 text-[#11a387]"></i>
+          </div>
+          <h3 class="text-sm font-bold text-[#201f1e]">Change Portal Password</h3>
+        </div>
+        <button type="button" onclick="closeLoginPasswordChangeModal()" class="text-[#605e5c] hover:text-[#201f1e]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Current Portal Password</label>
+          <input type="password" id="modalCurLoginPass" placeholder="••••••••" class="fluent-input w-full font-mono">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">New Password</label>
+          <input type="password" id="modalNewLoginPass" placeholder="••••••••" class="fluent-input w-full font-mono">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Confirm New Password</label>
+          <input type="password" id="modalConfLoginPass" placeholder="••••••••" class="fluent-input w-full font-mono">
+        </div>
+        <div id="modalLoginPassMsg" class="hidden text-[11px] font-medium"></div>
+      </div>
+
+      <div class="flex justify-between items-center pt-2 border-t border-[#edebe9]">
+        <button type="button" onclick="closeLoginPasswordChangeModal()" class="fluent-btn fluent-btn-default text-xs">
+          Cancel
+        </button>
+        <button type="button" onclick="submitLoginPasswordChangeModal()" class="fluent-btn fluent-btn-primary text-xs font-semibold" style="background-color: #095244;">
+          Update Password
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MICROSOFT 365 SUITE BAR ==================== -->
+  <header class="fluent-suitebar flex items-center justify-between px-3 z-30 select-none shrink-0 shadow-xs relative">
+    <!-- Left: App Waffle (9 dots) & Brand Title -->
+    <div class="flex items-center gap-3">
+      <button onclick="toggleAppLauncher(event)" class="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded transition-colors text-white" title="App Launcher (Microsoft 365 & Healthysure Suite)">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+          <circle cx="4" cy="4" r="2"/>
+          <circle cx="10" cy="4" r="2"/>
+          <circle cx="16" cy="4" r="2"/>
+          <circle cx="4" cy="10" r="2"/>
+          <circle cx="10" cy="10" r="2"/>
+          <circle cx="16" cy="10" r="2"/>
+          <circle cx="4" cy="16" r="2"/>
+          <circle cx="10" cy="16" r="2"/>
+          <circle cx="16" cy="16" r="2"/>
+        </svg>
+      </button>
+
+      <div class="flex items-center gap-2">
+        <a href="https://www.healthysure.in" target="_blank" class="font-semibold text-sm tracking-tight text-white flex items-center gap-1.5 hover:opacity-90 transition-opacity">
+          <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Healthysure
+        </a>
+        <span class="text-white/40 font-light">|</span>
+        <span class="text-xs font-semibold text-white/95">BD Central Repository</span>
+      </div>
+    </div>
+
+    <!-- Center: Global Search Bar -->
+    <div class="hidden md:flex items-center flex-1 max-w-xl mx-8">
+      <div class="relative w-full">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#605e5c]">
+          <i data-lucide="search" class="w-4 h-4"></i>
+        </div>
+        <input 
+          type="text" 
+          id="globalSearch" 
+          placeholder="Search 28,000+ unique companies by Name, City, BD Owner, SPOC, Data Source..." 
+          class="w-full pl-9 pr-12 py-1.5 text-xs bg-white text-[#201f1e] placeholder-[#605e5c] rounded-[4px] border border-transparent focus:outline-none focus:border-[#11a387] focus:ring-1 focus:ring-[#11a387] shadow-2xs transition-all"
+        >
+        <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center">
+          <span class="text-[10px] text-[#605e5c] font-mono">Instant</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Suite Actions -->
+    <div class="flex items-center gap-1.5">
+      <!-- Founder Review Notes Trigger -->
+      <button onclick="openFeedbackModal()" class="px-2.5 py-1.5 bg-[#ffffff]/15 hover:bg-[#ffffff]/25 text-white border border-white/30 rounded flex items-center gap-1.5 text-xs font-semibold transition-all shadow-xs" title="Founder Review: Leave notes, feedback, or change requests">
+        <svg class="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+        <span>Review Notes</span>
+      </button>
+
+      <!-- Copilot Trigger -->
+      <button onclick="toggleCopilotDrawer()" class="px-2.5 py-1.5 hover:bg-white/10 rounded flex items-center gap-1.5 text-xs text-white font-medium transition-colors" title="Open Copilot Assistant">
+        <svg class="w-4 h-4 text-[#ffd54f]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+        </svg>
+        <span>Copilot</span>
+      </button>
+
+      <!-- Unified Settings Menu Trigger -->
+      <button onclick="openSettingsModal('ai')" class="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded text-white transition-colors" title="Healthysure Settings (AI Models, BD Transfer, Export Security, Data)">
+        <i data-lucide="settings" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Lock Portal Trigger -->
+      <button onclick="lockRepository()" class="px-2.5 py-1.5 hover:bg-white/10 rounded flex items-center gap-1.5 text-xs text-white/90 font-medium transition-colors" title="Lock BD Central Repository">
+        <svg class="w-3.5 h-3.5 text-white/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span class="hidden sm:inline">Lock</span>
+      </button>
+
+      <div class="h-4 w-px bg-white/20 mx-1"></div>
+
+      <!-- User Profile Badge -->
+      <div class="flex items-center gap-2 pl-1 cursor-pointer" onclick="openSettingsModal('about')" title="Healthysure Workspace">
+        <div class="w-7 h-7 rounded-full bg-white text-[#11a387] flex items-center justify-center text-xs font-bold border border-white/40 shadow-xs">
+          HS
+        </div>
+      </div>
+    </div>
+
+    <!-- 9-DOTS APP LAUNCHER FLYOUT (Office 365 / Healthysure Suite Menu) -->
+    <div id="appLauncherPopover" class="fluent-app-launcher-popover hidden p-3 text-xs">
+      <div class="text-[11px] font-bold text-[#605e5c] uppercase tracking-wider mb-2.5 flex items-center justify-between">
+        <span>Healthysure Apps</span>
+        <span class="text-[10px] text-[#11a387] font-semibold">Enterprise</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <a href="https://www.healthysure.in" target="_blank" class="p-2.5 rounded hover:bg-[#e7f6f3] flex flex-col items-center text-center gap-1.5 text-[#323130] transition-colors">
+          <div class="w-8 h-8 rounded bg-[#11a387] text-white flex items-center justify-center">
+            <i data-lucide="shield" class="w-4 h-4"></i>
+          </div>
+          <span class="text-[11px] font-medium leading-tight">Healthysure Portal</span>
+        </a>
+
+        <div class="p-2.5 rounded bg-[#e7f6f3] border border-[#b2e3da] flex flex-col items-center text-center gap-1.5 text-[#0e8770] cursor-default">
+          <div class="w-8 h-8 rounded bg-[#11a387] text-white flex items-center justify-center shadow-xs">
+            <i data-lucide="calendar" class="w-4 h-4"></i>
+          </div>
+          <span class="text-[11px] font-bold leading-tight">Renewal Intel</span>
+        </div>
+
+        <a href="#" onclick="toggleCopilotDrawer(); toggleAppLauncher(); return false;" class="p-2.5 rounded hover:bg-[#f3f0fc] flex flex-col items-center text-center gap-1.5 text-[#323130] transition-colors">
+          <div class="w-8 h-8 rounded bg-gradient-to-br from-[#11a387] to-[#6264a7] text-white flex items-center justify-center">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+            </svg>
+          </div>
+          <span class="text-[11px] font-medium leading-tight">Copilot AI</span>
+        </a>
+
+        <a href="https://www.healthysure.in/claims" target="_blank" class="p-2.5 rounded hover:bg-[#eff6fc] flex flex-col items-center text-center gap-1.5 text-[#323130] transition-colors">
+          <div class="w-8 h-8 rounded bg-[#0078d4] text-white flex items-center justify-center">
+            <i data-lucide="activity" class="w-4 h-4"></i>
+          </div>
+          <span class="text-[11px] font-medium leading-tight">Claims Desk</span>
+        </a>
+
+        <a href="https://www.healthysure.in/wellness" target="_blank" class="p-2.5 rounded hover:bg-[#f0fdf4] flex flex-col items-center text-center gap-1.5 text-[#323130] transition-colors">
+          <div class="w-8 h-8 rounded bg-[#107c41] text-white flex items-center justify-center">
+            <i data-lucide="heart" class="w-4 h-4"></i>
+          </div>
+          <span class="text-[11px] font-medium leading-tight">Wellness</span>
+        </a>
+
+        <a href="#" onclick="openSettingsModal('ai'); toggleAppLauncher(); return false;" class="p-2.5 rounded hover:bg-[#faf9f8] flex flex-col items-center text-center gap-1.5 text-[#323130] transition-colors">
+          <div class="w-8 h-8 rounded bg-[#605e5c] text-white flex items-center justify-center">
+            <i data-lucide="sliders" class="w-4 h-4"></i>
+          </div>
+          <span class="text-[11px] font-medium leading-tight">Settings</span>
+        </a>
+      </div>
+      <div class="mt-3 pt-2.5 border-t border-[#edebe9] text-[10px] text-[#605e5c] flex items-center justify-between">
+        <span>Office 365 & Healthysure Ecosystem</span>
+        <a href="https://www.healthysure.in" target="_blank" class="text-[#11a387] font-semibold hover:underline">healthysure.in</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MICROSOFT DYNAMICS COMMAND BAR (Exact Requested Top Section) ==================== -->
+  <nav class="fluent-commandbar flex items-center justify-between px-4 z-20 shrink-0">
+    
+    <!-- Left: Top Command Bar Buttons (Matches Screenshot: Bulk Import | Export Excel | + Add Record) -->
+    <div id="normalCommandsGroup" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+      
+      <!-- 1. Bulk Import (Supports Spreadsheets, Images, PDFs, JSON) -->
+      <button onclick="openBulkImportModal()" class="fluent-btn fluent-btn-subtle text-xs gap-1.5 font-medium text-[#201f1e] hover:bg-[#e7f6f3]" title="Bulk import records from Excel, CSV, PDF, or Images">
+        <i data-lucide="arrow-up-to-line" class="w-4 h-4 text-[#11a387]"></i>
+        <span>Bulk Import</span>
+      </button>
+
+      <!-- 2. Export Excel (Password Protected for Admin Confidentiality) -->
+      <button onclick="openAdminExportModal()" class="fluent-btn fluent-btn-subtle text-xs gap-1.5 font-medium text-[#201f1e] hover:bg-[#e7f6f3]" title="Download confidential database to Microsoft Excel (Admin Password Protected)">
+        <svg class="w-4 h-4 text-[#107c41]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21.17 3.25Q21.5 3.25 21.75 3.5 22 3.75 22 4.08V19.92Q22 20.25 21.75 20.5 21.5 20.75 21.17 20.75H8.83Q8.5 20.75 8.25 20.5 8 20.25 8 19.92V17H2.83Q2.5 17 2.25 16.75 2 16.5 2 16.17V7.83Q2 7.5 2.25 7.25 2.5 7 2.83 7H8V4.08Q8 3.75 8.25 3.5 8.5 3.25 8.83 3.25H21.17M9.5 8.5V15.5H20.5V8.5H9.5M3.5 8.5V15.5H8V8.5H3.5Z"/>
+        </svg>
+        <span>Export Excel</span>
+        <i data-lucide="lock" class="w-3 h-3 text-[#8a8886] ml-0.5" title="Admin Password Protected"></i>
+      </button>
+
+      <!-- 2B. Direct CRM Sync / Export Wizard (Goal: 12,000 Accounts) -->
+      <button onclick="openCrmExportModal()" class="fluent-btn fluent-btn-subtle text-xs gap-1.5 font-semibold text-[#0e8770] hover:bg-[#e7f6f3] border border-[#a1ded3] shadow-2xs" title="Export batch of high-quality verified leads directly formatted for your CRM (Target: 12,000 Accounts)">
+        <i data-lucide="zap" class="w-3.5 h-3.5 text-[#11a387]"></i>
+        <span>Export for CRM (12K Goal)</span>
+      </button>
+
+      <!-- 3. Add Record -->
+      <button onclick="openAddRecordModal()" class="fluent-btn fluent-btn-primary text-xs gap-1.5 font-semibold shadow-2xs hover:shadow-xs">
+        <i data-lucide="plus" class="w-4 h-4 text-white"></i>
+        <span>Add Record</span>
+      </button>
+
+      <div class="h-4 w-px bg-[#edebe9] mx-1"></div>
+
+      <!-- Quick BD Reassign Tool -->
+      <button onclick="openSettingsModal('bd')" class="fluent-btn fluent-btn-subtle text-xs gap-1.5 text-[#201f1e] hover:bg-[#e7f6f3]" title="Reallocate ex-employee accounts to current BD reps">
+        <i data-lucide="users" class="w-3.5 h-3.5 text-[#11a387]"></i>
+        <span>BD Allocation</span>
+      </button>
+
+      <!-- Clear Filters -->
+      <button onclick="clearAllFilters()" class="fluent-btn fluent-btn-subtle text-xs gap-1.5 text-[#605e5c] hover:bg-[#f3f2f1]" title="Reset all search queries and filters">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-[#8a8886]"></i>
+        <span>Clear Filters</span>
+      </button>
+    </div>
+
+    <!-- State 2: Selection Command Bar (appears when items are checked) -->
+    <div id="selectionCommandsGroup" class="hidden flex items-center gap-2 py-1">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#e7f6f3] text-[#0e8770] text-xs font-semibold border border-[#b2e3da]">
+        <i data-lucide="check-square" class="w-3.5 h-3.5 text-[#11a387]"></i>
+        <span id="cmdSelectedText">0 items selected</span>
+      </span>
+
+      <!-- Bulk BD Reallocation Button -->
+      <button onclick="openBulkReassignBdModal()" class="fluent-btn fluent-btn-default h-7 text-xs gap-1.5 font-semibold text-[#0e8770] hover:bg-[#e7f6f3] border-[#b2e3da]" title="Reassign selected companies to another BD rep">
+        <i data-lucide="user-check" class="w-3.5 h-3.5 text-[#11a387]"></i>
+        <span>Reallocate BD Owner</span>
+      </button>
+
+      <button onclick="startBatchEnrichment()" class="fluent-btn fluent-btn-primary h-7 text-xs gap-1.5 font-semibold">
+        <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+        </svg>
+        <span>Batch AI Enrich</span>
+      </button>
+
+      <button onclick="clearSelection()" class="fluent-btn fluent-btn-subtle h-7 text-xs text-[#605e5c]">
+        Deselect
+      </button>
+    </div>
+
+    <!-- Right Live Stats (Compact) -->
+    <div class="flex items-center gap-3 text-xs text-[#605e5c]">
+      <div class="hidden sm:flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-[#11a387]"></span>
+        <span>Total Unique: <strong id="statTotalCompanies" class="text-[#201f1e] font-semibold">28,170</strong></span>
+      </div>
+      <div class="hidden md:flex items-center gap-1 text-[#8a3707]">
+        <span>Needs SPOC: <strong id="statMissingContacts" class="font-semibold text-[#8a3707]">23,687</strong></span>
+      </div>
+      <div class="hidden lg:flex items-center gap-1 text-[#0e8770]">
+        <span>AI Enriched: <strong id="statEnriched" class="font-semibold text-[#0e8770]">0</strong></span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="flex-1 flex flex-col p-4 gap-3 max-w-[1750px] w-full mx-auto overflow-hidden">
+    
+    <!-- ==================== BD & SALES HIGH-VELOCITY COCKPIT ==================== -->
+    <section id="bdCockpitBanner" class="fluent-card p-3 bg-gradient-to-r from-[#f0fbf8] via-white to-[#f7fcfb] border-l-4 border-l-[#11a387] flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 shadow-2xs">
+      
+      <!-- Left: Active BD & Closer Alignment -->
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Cockpit Badge -->
+        <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-[#e7f6f3] border border-[#b2e3da]">
+          <i data-lucide="crosshair" class="w-3.5 h-3.5 text-[#11a387]"></i>
+          <span class="text-[11px] font-bold text-[#0e8770] uppercase tracking-wider">BD Cockpit</span>
+        </div>
+
+        <!-- BD Rep Selector -->
+        <div class="flex items-center gap-1.5">
+          <label for="cockpitBdSelect" class="text-xs font-semibold text-[#323130]">Active Rep:</label>
+          <select id="cockpitBdSelect" onchange="switchCockpitBD(this.value)" class="text-xs font-semibold bg-white border border-[#b2e3da] text-[#0e8770] rounded px-2.5 py-1 focus:ring-1 focus:ring-[#11a387] cursor-pointer shadow-2xs">
+            <option value="ALL">All 6 BD Members (Team View)</option>
+            <option value="Aditi">Aditi Jain (Aligned Closer: Vipul)</option>
+            <option value="Charan">Charan (Aligned Closer: Deepesh)</option>
+            <option value="Vimlendu">Vimlendu (Aligned Closer: Sachin)</option>
+            <option value="Sudipto">Sudipto (Aligned Closer: Atharva)</option>
+            <option value="Deepesh">Deepesh (Aligned Closer: Sales Rep 5)</option>
+            <option value="Vipul">Vipul (Aligned Closer: Sales Rep 6)</option>
+            <option value="Backup">BD Float / Backup</option>
+          </select>
+        </div>
+
+        <!-- Aligned Closer Tag -->
+        <div id="cockpitCloserTag" class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white text-[#201f1e] text-xs border border-[#edebe9] shadow-2xs">
+          <i data-lucide="handshake" class="w-3.5 h-3.5 text-[#11a387]"></i>
+          <span class="text-[#605e5c]">Aligned Sales Closer:</span>
+          <strong id="cockpitCloserName" class="text-[#0e8770] font-semibold">Vipul</strong>
+        </div>
+
+        <div class="h-4 w-px bg-[#c8c6c4] hidden md:block"></div>
+
+        <!-- Metric 1: Monthly Direct Target (25 Accounts) -->
+        <div class="flex items-center gap-1.5 text-xs bg-white px-2.5 py-1 rounded border border-[#edebe9] shadow-2xs" title="Monthly Direct Target: 25 Corporate accounts per sales closer (125 Team Total)">
+          <i data-lucide="target" class="w-3.5 h-3.5 text-[#11a387]"></i>
+          <span class="text-[#605e5c]">Direct Target:</span>
+          <strong id="cockpitAccountsCurrent" class="font-bold text-[#0e8770]">0</strong>
+          <span id="cockpitAccountsTarget" class="text-[#8a8886]">/ 25 acc/mo</span>
+        </div>
+
+        <!-- Metric 2: Weekly Meetings (Team Goal: 30-32 | ~5-6 per BD) -->
+        <div class="flex items-center gap-1.5 text-xs bg-white px-2.5 py-1 rounded border border-[#edebe9] shadow-2xs" title="Weekly Goal: 30-32 Meetings across team (~5-6 meetings per BD/week)">
+          <i data-lucide="calendar-check" class="w-3.5 h-3.5 text-[#0078d4]"></i>
+          <span class="text-[#605e5c]">Meetings This Week:</span>
+          <strong id="cockpitMeetingsCurrent" class="font-bold text-[#0078d4]">0</strong>
+          <span class="text-[#8a8886]">/ <span id="cockpitMeetingsTarget">32</span> booked</span>
+        </div>
+      </div>
+
+      <!-- Right: Cockpit Quick Actions -->
+      <div class="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
+        <button onclick="filterNext60DaysRenewals()" class="fluent-btn fluent-btn-default h-7 text-xs gap-1.5 text-[#0e8770] border-[#b2e3da] hover:bg-[#e7f6f3]" title="Filter high-priority accounts renewing in next 60 days (Peak GHI RFP Window)">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-[#11a387]"></i>
+          <span>Next 60-Day Renewals</span>
+        </button>
+
+        <button onclick="openLogMeetingModal()" class="fluent-btn fluent-btn-primary h-7 text-xs gap-1.5 font-semibold shadow-2xs" title="Log a meeting booked towards your 30-32 weekly goal">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-white"></i>
+          <span>+ Log Meeting</span>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- FLUENT FILTER RIBBON -->
+    <section class="fluent-card p-3 flex flex-col gap-2.5">
+      
+      <!-- Top View Pills -->
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <span class="text-[11px] font-semibold text-[#605e5c] uppercase tracking-wide mr-1">View:</span>
+
+          <button 
+            data-filter-type="contactFilter" 
+            onclick="setQuickFilter('contactFilter', 'ALL', this)" 
+            class="fluent-pill active">
+            All Companies
+          </button>
+
+          <button 
+            data-filter-type="contactFilter" 
+            onclick="setQuickFilter('contactFilter', 'MISSING_SPOC', this)" 
+            class="fluent-pill text-[#8a3707]">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-[#8a3707]"></i>
+            Needs SPOC
+          </button>
+
+          <button 
+            data-filter-type="contactFilter" 
+            onclick="setQuickFilter('contactFilter', 'MISSING_EMAIL', this)" 
+            class="fluent-pill">
+            <i data-lucide="mail" class="w-3.5 h-3.5 text-[#a19f9d]"></i>
+            Missing Email
+          </button>
+
+          <button 
+            data-filter-type="contactFilter" 
+            onclick="setQuickFilter('contactFilter', 'MISSING_PHONE', this)" 
+            class="fluent-pill">
+            <i data-lucide="phone" class="w-3.5 h-3.5 text-[#a19f9d]"></i>
+            Missing Phone
+          </button>
+
+          <button 
+            data-filter-type="contactFilter" 
+            onclick="setQuickFilter('contactFilter', 'AI_ENRICHED', this)" 
+            class="fluent-pill text-[#5c2d91]">
+            <svg class="w-3.5 h-3.5 text-[#5c2d91]" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+            </svg>
+            AI Enriched
+          </button>
+
+          <div class="h-4 w-px bg-[#edebe9] mx-1"></div>
+
+          <!-- Date Quick Pills -->
+          <button 
+            data-filter-type="datePreset" 
+            onclick="setDatePresetFilter('NEXT_15_DAYS', this)" 
+            class="fluent-pill">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-[#11a387]"></i>
+            Next 15 Days
+          </button>
+
+          <button 
+            data-filter-type="datePreset" 
+            onclick="setDatePresetFilter('NEXT_30_DAYS', this)" 
+            class="fluent-pill">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-[#11a387]"></i>
+            Next 30 Days
+          </button>
+
+          <button 
+            data-filter-type="datePreset" 
+            onclick="setDatePresetFilter('CURRENT_MONTH', this)" 
+            class="fluent-pill">
+            This Month
+          </button>
+
+          <button 
+            data-filter-type="datePreset" 
+            onclick="setDatePresetFilter('NEXT_MONTH', this)" 
+            class="fluent-pill">
+            Next Month
+          </button>
+        </div>
+
+        <div class="text-xs text-[#605e5c] whitespace-nowrap">
+          Filtered: <strong id="statFilteredCount" class="text-[#201f1e] font-semibold">27,003</strong>
+        </div>
+      </div>
+
+      <!-- ANNUAL DATE-WISE FILTER STRIP (Day + Month Filter, ignores year for annual renewal cycle) -->
+      <div class="bg-[#f8faf9] p-2.5 rounded-[4px] border border-[#d3f0ea] flex items-center justify-between gap-3 flex-wrap text-xs">
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="flex items-center gap-1.5 font-semibold text-[#0e8770]">
+            <i data-lucide="calendar-range" class="w-4 h-4 text-[#11a387]"></i>
+            <span>Annual Renewal Date Range (Day & Month):</span>
+          </div>
+
+          <!-- From Day & Month -->
+          <div class="flex items-center gap-1 bg-white border border-[#c8c6c4] rounded px-2 py-1">
+            <span class="text-[11px] text-[#605e5c]">From:</span>
+            <select id="dateFilterFromDay" class="bg-transparent text-xs font-semibold text-[#201f1e] outline-none cursor-pointer">
+              <!-- 1 to 31 -->
+            </select>
+            <select id="dateFilterFromMonth" class="bg-transparent text-xs font-semibold text-[#201f1e] outline-none cursor-pointer">
+              <!-- Jan to Dec -->
+            </select>
+          </div>
+
+          <!-- To Day & Month -->
+          <div class="flex items-center gap-1 bg-white border border-[#c8c6c4] rounded px-2 py-1">
+            <span class="text-[11px] text-[#605e5c]">To:</span>
+            <select id="dateFilterToDay" class="bg-transparent text-xs font-semibold text-[#201f1e] outline-none cursor-pointer">
+              <!-- 1 to 31 -->
+            </select>
+            <select id="dateFilterToMonth" class="bg-transparent text-xs font-semibold text-[#201f1e] outline-none cursor-pointer">
+              <!-- Jan to Dec -->
+            </select>
+          </div>
+
+          <!-- Apply / Clear buttons -->
+          <button onclick="applyCustomDateRange()" class="fluent-btn fluent-btn-primary h-7 px-3 text-xs font-semibold">
+            Apply Date Range
+          </button>
+
+          <button onclick="clearDateRangeFilter()" class="fluent-btn fluent-btn-subtle h-7 px-2 text-xs text-[#605e5c]">
+            Reset Date
+          </button>
+        </div>
+
+        <!-- Quick Example Shortcut Button -->
+        <div class="flex items-center gap-1.5 text-[11px] text-[#605e5c]">
+          <span>Quick Example:</span>
+          <button onclick="setSampleDateRange(1, 10, 15, 12)" class="px-2 py-0.5 rounded bg-white hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] font-medium" title="Filter renewals from 1 Oct to 15 Dec">
+            1 Oct – 15 Dec
+          </button>
+          <button onclick="setSampleDateRange(1, 1, 31, 3)" class="px-2 py-0.5 rounded bg-white hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] font-medium" title="Filter renewals for Q4 (1 Jan to 31 Mar)">
+            1 Jan – 31 Mar (Q4)
+          </button>
+        </div>
+      </div>
+
+      <!-- Dropdown Filter Controls (Data Source, City, BD, Size, Status) -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+        
+        <!-- 1. DATA SOURCE (Replaces Insurer - Matches Screenshot Options) -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1 flex items-center justify-between">
+            <span>Data Source</span>
+            <span class="text-[10px] text-[#11a387] font-normal">Exact taxonomy</span>
+          </label>
+          <select id="filterDataSource" class="fluent-select w-full">
+            <option value="ALL">All data sources</option>
+            <option value="Insurer">Insurer</option>
+            <option value="TPA">TPA</option>
+            <option value="Claim Tech">Claim Tech</option>
+            <option value="Channel Partner">Channel Partner</option>
+            <option value="Team Member">Team Member</option>
+            <option value="Broker">Broker</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <!-- 2. CITY / LOCATION (Requirement #3 for City-wise BD member assignment) -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1 flex items-center justify-between">
+            <span>City / Location</span>
+            <span class="text-[10px] text-[#605e5c] font-normal">Territory</span>
+          </label>
+          <select id="filterCity" class="fluent-select w-full">
+            <option value="ALL">All Cities</option>
+          </select>
+        </div>
+
+        <!-- 3. BD OWNER (Editable & Reallocatable) -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">BD Owner</label>
+          <select id="filterBD" class="fluent-select w-full">
+            <option value="ALL">All BD Members</option>
+          </select>
+        </div>
+
+        <!-- 4. COMPANY SIZE (Updated Rules: <50 Small, 50-200 Medium, >200 Large) -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1 flex items-center justify-between">
+            <span>Company Size</span>
+            <span class="text-[10px] text-[#605e5c] font-normal">&lt;50 / 50-200 / &gt;200</span>
+          </label>
+          <select id="filterSize" class="fluent-select w-full">
+            <option value="ALL">All Sizes</option>
+            <option value="Small">Small (&lt; 50 emp)</option>
+            <option value="Medium">Medium (50 - 200 emp)</option>
+            <option value="Large">Large (&gt; 200 emp)</option>
+          </select>
+        </div>
+
+        <!-- 5. OUTREACH STATUS -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Outreach Status</label>
+          <select id="filterStatus" class="fluent-select w-full">
+            <option value="ALL">All Statuses</option>
+            <option value="new">New / Uncontacted</option>
+            <option value="ai_enriched">AI Enriched</option>
+            <option value="contacted">Contacted</option>
+            <option value="meeting">Meeting Scheduled</option>
+            <option value="converted">Won / Closed</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- FLUENT DATA GRID CARD -->
+    <div class="fluent-card flex-1 flex flex-col overflow-hidden">
+      
+      <!-- Table Header Status Bar -->
+      <div class="px-4 py-2 bg-[#faf9f8] border-b border-[#edebe9] flex items-center justify-between text-xs text-[#605e5c]">
+        <div id="paginationInfo" class="font-normal">
+          Showing 1 - 50 of 27,003 companies
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5">
+            <span>Rows per page:</span>
+            <select id="pageSizeSelect" class="bg-white border border-[#c8c6c4] rounded px-1.5 py-0.5 text-xs text-[#323130] focus:outline-none focus:border-[#11a387]">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Body Container -->
+      <div class="overflow-auto flex-1">
+        <table class="fluent-table">
+          <thead>
+            <tr>
+              <th class="w-10 text-center">
+                <input type="checkbox" id="selectAllMaster" onchange="toggleSelectAllOnPage()" class="w-4 h-4 rounded text-[#11a387] border-[#8a8886] focus:ring-[#11a387] cursor-pointer">
+              </th>
+              <th class="min-w-[210px]">Company Name</th>
+              <th class="min-w-[110px]">Renewal Date</th>
+              <th class="min-w-[95px]">Size</th>
+              <th class="min-w-[120px]">City / Location</th>
+              <th class="min-w-[130px]">BD Owner</th>
+              <th class="min-w-[170px]">Contact Person / SPOC</th>
+              <th class="min-w-[180px]">Email & Phone</th>
+              <th class="min-w-[140px]">Data Source</th>
+              <th class="min-w-[110px]">Status</th>
+              <th class="text-right w-20">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="companiesTableBody" class="bg-white">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Table Footer / Pagination Controls -->
+      <div class="px-4 py-2 bg-[#faf9f8] border-t border-[#edebe9] flex items-center justify-between gap-4 text-xs">
+        <div class="text-[#605e5c] text-[11px] flex items-center gap-2">
+          <span>Healthysure Data Engine</span>
+          <span class="text-[#edebe9]">•</span>
+          <span id="activeFilterSummary">Showing all records</span>
+        </div>
+        <div id="paginationControls" class="flex items-center gap-1">
+          <!-- Dynamic pagination buttons -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ==================== CONFIDENTIAL ADMIN PASSWORD-PROTECTED EXPORT MODAL ==================== -->
+  <div id="adminExportModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-md w-full overflow-hidden fluent-animate-in">
+      
+      <!-- Header -->
+      <div class="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded bg-[#fde7e9] text-[#a80000] flex items-center justify-center">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-[#a80000]"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-[#201f1e]">Confidential Database Export</h3>
+            <p class="text-[11px] text-[#605e5c]">Admin Password Verification Required</p>
+          </div>
+        </div>
+        <button onclick="closeAdminExportModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="p-6 space-y-4 text-xs">
+        <div class="p-3 bg-[#fff4ce] border border-[#fed9cc] rounded-[4px] text-[#8a3707] space-y-1">
+          <div class="font-bold flex items-center gap-1.5">
+            <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+            <span>Proprietary Corporate Intelligence</span>
+          </div>
+          <p class="text-[11px] leading-relaxed">
+            This database contains 27,000+ proprietary corporate client accounts and renewal dates. To prevent unauthorized data leakage by team members, exports to Microsoft Excel are restricted to administrators.
+          </p>
+        </div>
+
+        <!-- Export Scope -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1.5">Export Scope:</label>
+          <div class="space-y-1.5">
+            <label class="flex items-center gap-2 p-2 border border-[#c8c6c4] rounded cursor-pointer hover:bg-[#faf9f8]">
+              <input type="radio" name="exportScope" value="filtered" checked class="text-[#11a387] focus:ring-[#11a387]">
+              <div>
+                <span class="font-semibold text-[#201f1e]">Export Current Filtered View</span>
+                <span id="exportFilteredCountLabel" class="text-[#605e5c] ml-1">(27,003 records)</span>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 p-2 border border-[#c8c6c4] rounded cursor-pointer hover:bg-[#faf9f8]">
+              <input type="radio" name="exportScope" value="all" class="text-[#11a387] focus:ring-[#11a387]">
+              <div>
+                <span class="font-semibold text-[#201f1e]">Export Entire Master Database</span>
+                <span class="text-[#605e5c] ml-1">(All 27,003 companies)</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Password Field -->
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Enter Admin Master Password</label>
+          <div class="relative">
+            <input 
+              type="password" 
+              id="adminExportPasswordInput" 
+              placeholder="Enter password..." 
+              class="fluent-input w-full pr-10 font-mono"
+              onkeydown="if(event.key==='Enter') executeAdminAuthorizedExport();"
+            >
+            <button type="button" onclick="togglePasswordVisibility('adminExportPasswordInput')" class="absolute right-2 top-2 text-[#605e5c] hover:text-[#201f1e]">
+              <i data-lucide="eye" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div id="adminExportPasswordError" class="text-[#a80000] text-[11px] mt-1 hidden font-medium">
+            Incorrect admin password. Please try again.
+          </div>
+          <div class="mt-2 flex items-center justify-between text-[11px]">
+            <span class="text-[#605e5c]">Protected action</span>
+            <button type="button" onclick="openAdminPasswordChangeDirect()" class="text-[#11a387] hover:underline font-semibold flex items-center gap-1">
+              <i data-lucide="key" class="w-3 h-3"></i>
+              <span>Change Admin Password</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-3 border-t border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <button onclick="closeAdminExportModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="executeAdminAuthorizedExport()" class="fluent-btn fluent-btn-primary gap-1.5 font-bold">
+          <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21.17 3.25Q21.5 3.25 21.75 3.5 22 3.75 22 4.08V19.92Q22 20.25 21.75 20.5 21.5 20.75 21.17 20.75H8.83Q8.5 20.75 8.25 20.5 8 20.25 8 19.92V17H2.83Q2.5 17 2.25 16.75 2 16.5 2 16.17V7.83Q2 7.5 2.25 7.25 2.5 7 2.83 7H8V4.08Q8 3.75 8.25 3.5 8.5 3.25 8.83 3.25H21.17M9.5 8.5V15.5H20.5V8.5H9.5M3.5 8.5V15.5H8V8.5H3.5Z"/>
+          </svg>
+          <span>Authorize & Download Excel</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== UNIVERSAL BULK IMPORT MODAL ==================== -->
+  <div id="bulkImportModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-xl w-full overflow-hidden fluent-animate-in">
+      
+      <div class="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded bg-[#e7f6f3] text-[#11a387] flex items-center justify-center">
+            <i data-lucide="upload-cloud" class="w-5 h-5 text-[#11a387]"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-[#201f1e]">Bulk Import Corporate Records</h3>
+            <p class="text-[11px] text-[#605e5c]">Supports Excel, CSV, PDF, Images (PNG/JPG), and Raw Spreadsheets</p>
+          </div>
+        </div>
+        <button onclick="closeBulkImportModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4 text-xs">
+        <!-- Drop Zone -->
+        <div 
+          id="importDropZone" 
+          onclick="document.getElementById('universalFileInput').click()"
+          class="border-2 border-dashed border-[#b2e3da] hover:border-[#11a387] bg-[#f8faf9] hover:bg-[#e7f6f3]/40 rounded-lg p-6 text-center cursor-pointer transition-all space-y-2">
+          
+          <div class="w-12 h-12 rounded-full bg-white text-[#11a387] mx-auto flex items-center justify-center shadow-xs border border-[#b2e3da]">
+            <i data-lucide="file-up" class="w-6 h-6 text-[#11a387]"></i>
+          </div>
+          <div class="font-bold text-sm text-[#201f1e]">Click to upload or drag & drop files here</div>
+          <p class="text-[11px] text-[#605e5c] max-w-sm mx-auto">
+            Spreadsheets (<code class="text-[#11a387]">.xlsx</code>, <code class="text-[#11a387]">.csv</code>), documents (<code class="text-[#11a387]">.pdf</code>), or images (<code class="text-[#11a387]">.png</code>, <code class="text-[#11a387]">.jpg</code>) of client lists or quotes.
+          </p>
+          <input 
+            type="file" 
+            id="universalFileInput" 
+            accept=".xlsx,.xls,.csv,.json,.pdf,.png,.jpg,.jpeg" 
+            onchange="handleUniversalFileUpload(event)" 
+            class="hidden"
+          >
+        </div>
+
+        <!-- Selected File Status -->
+        <div id="importFileStatus" class="hidden p-3 bg-white border border-[#edebe9] rounded-[4px] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="file-check" class="w-4 h-4 text-[#11a387]"></i>
+            <span id="importFileName" class="font-semibold text-[#201f1e]">filename.xlsx</span>
+            <span id="importFileSize" class="text-[#8a8886] text-[11px]">(0 KB)</span>
+          </div>
+          <button onclick="resetUniversalFileInput()" class="text-[#a80000] hover:underline text-[11px]">Remove</button>
+        </div>
+
+        <!-- Default Data Source for Imported Records -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Tag Data Source As:</label>
+            <select id="importDefaultSource" class="fluent-select w-full">
+              <option value="Team Member">Team Member</option>
+              <option value="Insurer">Insurer</option>
+              <option value="TPA">TPA</option>
+              <option value="Channel Partner">Channel Partner</option>
+              <option value="Claim Tech">Claim Tech</option>
+              <option value="Broker">Broker</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Assign Initial BD Owner:</label>
+            <input type="text" id="importDefaultBD" placeholder="e.g. Unassigned or BD Name" class="fluent-input w-full">
+          </div>
+        </div>
+
+        <p class="text-[11px] text-[#605e5c] leading-relaxed">
+          <strong>Intelligent Field Mapping:</strong> The importer automatically identifies columns such as Company Name, Renewal Date, Strength/Size, City, Phone, Email, and SPOC.
+        </p>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <button onclick="closeBulkImportModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button id="btnProcessImport" onclick="processUniversalImport()" class="fluent-btn fluent-btn-primary font-bold">
+          Start Import
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== BULK BD REALLOCATION DIALOG ==================== -->
+  <div id="bulkReassignBdModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-md w-full overflow-hidden fluent-animate-in">
+      
+      <div class="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded bg-[#e7f6f3] text-[#11a387] flex items-center justify-center">
+            <i data-lucide="user-check" class="w-5 h-5 text-[#11a387]"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-[#201f1e]">Reallocate BD Owner</h3>
+            <p class="text-[11px] text-[#605e5c]">Transfer selected accounts to active BD members</p>
+          </div>
+        </div>
+        <button onclick="closeBulkReassignBdModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4 text-xs">
+        <div class="p-3 bg-[#e7f6f3] border border-[#b2e3da] rounded-[4px] text-[#0e8770]">
+          You have selected <strong id="reassignCountText" class="font-bold text-[#11a387]">0 companies</strong> to reassign.
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Select New BD Owner</label>
+          <select id="reassignBdSelect" class="fluent-select w-full" onchange="toggleCustomBdInput(this.value)">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <div id="customBdInputDiv" class="hidden">
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Or Type New Employee Name:</label>
+          <input type="text" id="reassignCustomBdInput" placeholder="Enter new BD person's full name" class="fluent-input w-full">
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <button onclick="closeBulkReassignBdModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="confirmBulkReassignBd()" class="fluent-btn fluent-btn-primary font-bold">
+          Confirm Reallocation
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== ADD COMPANY RECORD DIALOG ==================== -->
+  <div id="addRecordModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden fluent-animate-in">
+      <div class="px-6 py-3.5 border-b border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <h3 class="text-sm font-bold text-[#201f1e] flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-[#11a387]"></i>
+          <span>Add New Corporate Record</span>
+        </h3>
+        <button onclick="closeAddRecordModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto flex-1 space-y-3.5 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Company Name *</label>
+            <input type="text" id="addName" placeholder="e.g. Acme Health Technologies" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Renewal Date (YYYY-MM-DD) *</label>
+            <input type="date" id="addDate" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Employee Strength</label>
+            <input type="number" id="addStrength" placeholder="e.g. 150" oninput="autoComputeAddSize(this.value)" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Company Size</label>
+            <select id="addSize" class="fluent-select w-full">
+              <option value="Small">Small (&lt; 50)</option>
+              <option value="Medium">Medium (50 - 200)</option>
+              <option value="Large">Large (&gt; 200)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">City / Location</label>
+            <input type="text" id="addCity" placeholder="e.g. Bangalore, Mumbai, Pune" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">BD Owner</label>
+            <input type="text" id="addBD" placeholder="e.g. Aditi, Deepesh, Vipul..." class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Data Source</label>
+            <select id="addDataSource" class="fluent-select w-full">
+              <option value="Team Member">Team Member</option>
+              <option value="Insurer">Insurer</option>
+              <option value="TPA">TPA</option>
+              <option value="Claim Tech">Claim Tech</option>
+              <option value="Channel Partner">Channel Partner</option>
+              <option value="Broker">Broker</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Contact Person Name</label>
+            <input type="text" id="addContact" placeholder="e.g. Rahul Sharma" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Designation</label>
+            <input type="text" id="addDesignation" placeholder="e.g. Head HR / CHRO" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Email ID</label>
+            <input type="email" id="addEmail" placeholder="e.g. rahul@company.com" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Phone Number</label>
+            <input type="text" id="addPhone" placeholder="e.g. 9820123456" class="fluent-input w-full">
+          </div>
+
+          <div class="col-span-2">
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Remarks & Policy Notes</label>
+            <textarea id="addRemarks" rows="2" placeholder="e.g. GMC policy expiring in Oct, 250 lives..." class="fluent-input w-full h-16 pt-2 resize-none"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeAddRecordModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="saveNewRecord()" class="fluent-btn fluent-btn-primary font-bold">
+          Save Record
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== HEALTHYSURE UNIFIED SETTINGS MODAL ==================== -->
+  <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden fluent-animate-in">
+      
+      <!-- Settings Header -->
+      <div class="px-6 py-3.5 border-b border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded bg-[#e7f6f3] text-[#11a387] flex items-center justify-center">
+            <i data-lucide="settings" class="w-4 h-4 text-[#11a387]"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-[#201f1e]">Healthysure Settings</h3>
+            <p class="text-[11px] text-[#605e5c]">AI models, BD team transfers, database security, and workspace preferences</p>
+          </div>
+        </div>
+        <button onclick="closeSettingsModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Settings Tabs Header -->
+      <div class="flex border-b border-[#edebe9] px-6 bg-white gap-1 overflow-x-auto no-scrollbar">
+        <button id="tabBtn_ai" onclick="switchSettingsTab('ai')" class="fluent-tab active flex items-center gap-1.5 whitespace-nowrap">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+          </svg>
+          AI & Enrichment
+        </button>
+
+        <button id="tabBtn_security" onclick="switchSettingsTab('security')" class="fluent-tab flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          Export Security
+        </button>
+
+        <button id="tabBtn_bd" onclick="switchSettingsTab('bd')" class="fluent-tab flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          BD Team Management
+        </button>
+
+        <button id="tabBtn_data" onclick="switchSettingsTab('data')" class="fluent-tab flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="database" class="w-4 h-4"></i>
+          Data & Storage
+        </button>
+
+        <button id="tabBtn_about" onclick="switchSettingsTab('about')" class="fluent-tab flex items-center gap-1.5 whitespace-nowrap">
+          <i data-lucide="info" class="w-4 h-4"></i>
+          About
+        </button>
+      </div>
+
+      <!-- Settings Tab Contents -->
+      <div class="p-6 overflow-y-auto flex-1 space-y-4 text-xs">
+        
+        <!-- TAB 1: AI & ENRICHMENT -->
+        <div id="tabContent_ai" class="settings-tab-content space-y-4">
+          <!-- OpenAI Configuration -->
+          <div class="p-3.5 bg-[#faf9f8] border border-[#edebe9] rounded-[4px] space-y-3">
+            <div class="font-semibold text-[#201f1e] flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-[#11a387]" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+                </svg>
+                1. OpenAI Intelligence Key
+              </span>
+              <button onclick="triggerModelDiscovery()" class="text-[#11a387] hover:underline text-[11px] font-semibold flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                Discover Models
+              </button>
+            </div>
+
+            <div>
+              <label class="block text-[#323130] font-semibold mb-1">OpenAI API Key</label>
+              <div class="relative">
+                <input type="password" id="inputApiKey" placeholder="sk-..." class="fluent-input w-full font-mono pr-20">
+                <button onclick="triggerModelDiscovery()" class="absolute right-1 top-1 bottom-1 px-2.5 bg-[#e7f6f3] hover:bg-[#d3f0ea] text-[#0e8770] rounded text-[11px] font-semibold border border-[#b2e3da]">
+                  Fetch
+                </button>
+              </div>
+              <div id="apiKeyStatus" class="min-h-[16px] text-xs mt-1"></div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[#323130] font-semibold">Active Model</label>
+                <span id="modelCountBadge" class="hidden text-[10px] font-semibold bg-[#e7f6f3] text-[#0e8770] px-1.5 py-0.5 rounded border border-[#b2e3da]">0 models</span>
+              </div>
+              <select id="selectAiModel" class="fluent-select w-full">
+                <option value="gpt-4o-mini">gpt-4o-mini ★ (Recommended: Fast & Cost-Effective)</option>
+                <option value="gpt-4o">gpt-4o (Flagship Deep Reasoning)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- B2B Live Contact Providers -->
+          <div class="p-3.5 bg-[#f0f9ff] border border-[#bae6fd] rounded-[4px] space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="font-semibold text-[#0369a1] flex items-center gap-1.5">
+                <i data-lucide="user-check" class="w-4 h-4 text-[#0284c7]"></i>
+                <span>2. B2B Verified Human Contacts (Apollo.io)</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-[#e0f2fe] text-[#0369a1] font-bold">100% Real People</span>
+            </div>
+            <p class="text-[11px] text-[#0369a1] leading-relaxed">
+              Connecting <strong>Apollo.io</strong> queries 275M+ verified B2B profiles for HR Heads, Total Rewards, and CFO direct phone dials & corporate emails.
+            </p>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[#323130] font-semibold">Apollo.io API Key</label>
+                <a href="https://app.apollo.io/#/settings/integrations/api_keys" target="_blank" rel="noopener noreferrer" class="text-[#0284c7] hover:underline text-[11px] font-medium flex items-center gap-0.5">
+                  Get Apollo Key <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+                </a>
+              </div>
+              <input type="password" id="inputApolloKey" placeholder="e.g. apollo_live_..." class="fluent-input w-full font-mono">
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[#323130] font-semibold">SerpAPI / Google Search Key</label>
+                <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noopener noreferrer" class="text-[#0284c7] hover:underline text-[11px] font-medium flex items-center gap-0.5">
+                  Get SerpAPI Key <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+                </a>
+              </div>
+              <input type="password" id="inputSerpApiKey" placeholder="e.g. serpapi_..." class="fluent-input w-full font-mono">
+            </div>
+          </div>
+
+          <!-- Prospeo.io / ProspIQ Integration -->
+          <div class="p-3.5 bg-[#fdf4ff] border border-[#f5d0fe] rounded-[4px] space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="font-semibold text-[#86198f] flex items-center gap-1.5">
+                <i data-lucide="mail-search" class="w-4 h-4 text-[#a21caf]"></i>
+                <span>3. Prospeo.io / ProspIQ (Indian Verified Emails)</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-[#fae8ff] text-[#86198f] font-bold">75 Free Credits/Mo</span>
+            </div>
+            <p class="text-[11px] text-[#701a75] leading-relaxed">
+              Connect <strong>Prospeo.io</strong> to verify direct corporate emails for Indian HR Heads, Total Rewards, and CFOs with 98% deliverability.
+            </p>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-[#323130] font-semibold">Prospeo API Key (X-KEY)</label>
+                <a href="https://prospeo.io/app/api" target="_blank" rel="noopener noreferrer" class="text-[#a21caf] hover:underline text-[11px] font-medium flex items-center gap-0.5">
+                  Get Prospeo Key (Free 75/mo) <i data-lucide="external-link" class="w-2.5 h-2.5"></i>
+                </a>
+              </div>
+              <input type="password" id="inputProspeoKey" placeholder="e.g. prs_live_..." class="fluent-input w-full font-mono">
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: EXPORT & ACCESS SECURITY -->
+        <div id="tabContent_security" class="settings-tab-content space-y-4 hidden">
+          <!-- Card 1: Portal Login Password -->
+          <div class="p-3.5 bg-[#faf9f8] border border-[#edebe9] rounded-[4px] space-y-3">
+            <div class="font-semibold text-[#201f1e] flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <i data-lucide="key" class="w-4 h-4 text-[#11a387]"></i>
+                <span>1. Portal Login Password (BD Dashboard Access)</span>
+              </div>
+              <span class="text-[10px] bg-[#e7f6f3] text-[#0e8770] px-2 py-0.5 rounded font-semibold border border-[#a1ded3]">General Access</span>
+            </div>
+            <p class="text-[11px] text-[#605e5c] leading-relaxed">
+              This password unlocks the BD Central Repository on initial login for the BD team and leadership.
+            </p>
+
+            <div class="pt-2 border-t border-[#edebe9] space-y-2.5">
+              <div>
+                <label class="block text-[11px] font-medium text-[#605e5c] mb-1">Current Portal Password</label>
+                <input type="password" id="inputCurrentLoginPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-medium text-[#605e5c] mb-1">New Password</label>
+                  <input type="password" id="inputNewLoginPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-medium text-[#605e5c] mb-1">Confirm New Password</label>
+                  <input type="password" id="inputConfirmLoginPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
+                </div>
+              </div>
+
+              <div id="loginPassChangeMsg" class="hidden text-[11px] font-medium"></div>
+
+              <button type="button" onclick="changeLoginPassword()" class="fluent-btn fluent-btn-default text-xs mt-1 font-semibold">
+                Update Portal Password
+              </button>
+            </div>
+          </div>
+
+          <!-- Card 2: Admin Master Password -->
+          <div class="p-3.5 bg-[#faf9f8] border border-[#edebe9] rounded-[4px] space-y-3">
+            <div class="font-semibold text-[#201f1e] flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <i data-lucide="shield-check" class="w-4 h-4 text-[#11a387]"></i>
+                <span>2. Admin Master Password (Excel & CRM Export Protection)</span>
+              </div>
+              <span class="text-[10px] bg-red-50 text-red-700 px-2 py-0.5 rounded font-semibold border border-red-200">Admin Only</span>
+            </div>
+            <p class="text-[11px] text-[#605e5c] leading-relaxed">
+              To prevent unauthorized data leakage by team members, downloading Excel files and running CRM batch exports strictly requires this Admin Master Password.
+            </p>
+
+            <div class="pt-2 border-t border-[#edebe9] space-y-2.5">
+              <div>
+                <label class="block text-[11px] font-medium text-[#605e5c] mb-1">Current Admin Password</label>
+                <input type="password" id="inputCurrentAdminPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-medium text-[#605e5c] mb-1">New Password</label>
+                  <input type="password" id="inputNewAdminPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-medium text-[#605e5c] mb-1">Confirm New Password</label>
+                  <input type="password" id="inputConfirmAdminPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
+                </div>
+              </div>
+
+              <div id="adminPassChangeMsg" class="hidden text-[11px] font-medium"></div>
+
+              <button type="button" onclick="changeAdminPassword()" class="fluent-btn fluent-btn-primary text-xs mt-1 font-semibold">
+                Update Admin Password
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: BD TEAM & PORTFOLIO TRANSFER -->
+        <div id="tabContent_bd" class="settings-tab-content space-y-4 hidden">
+          <div class="p-3.5 bg-[#e7f6f3] border border-[#b2e3da] rounded-[4px] space-y-3">
+            <div class="font-bold text-[#0e8770] flex items-center gap-1.5">
+              <i data-lucide="users" class="w-4 h-4 text-[#11a387]"></i>
+              <span>1-Click Bulk Portfolio Transfer (Ex-Employee to New BD Member)</span>
+            </div>
+            <p class="text-[11px] text-[#0e8770] leading-relaxed">
+              When a BD member leaves Healthysure, transfer their entire portfolio of companies to a new BD owner with a single click.
+            </p>
+
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label class="block font-semibold text-[#323130] mb-1">From Ex-Employee BD:</label>
+                <select id="transferFromBdSelect" class="fluent-select w-full">
+                  <!-- Populated dynamically -->
+                </select>
+              </div>
+
+              <div>
+                <label class="block font-semibold text-[#323130] mb-1">Transfer Entire Portfolio To:</label>
+                <input type="text" id="transferToBdInput" placeholder="Enter new BD person's name" class="fluent-input w-full">
+              </div>
+            </div>
+
+            <button onclick="executePortfolioTransfer()" class="fluent-btn fluent-btn-primary h-8 px-4 text-xs font-bold gap-1.5">
+              <i data-lucide="arrow-right-left" class="w-3.5 h-3.5"></i>
+              <span>Transfer All Accounts Now</span>
+            </button>
+          </div>
+
+          <div class="p-3.5 bg-white border border-[#edebe9] rounded-[4px] space-y-2">
+            <div class="font-semibold text-[#201f1e] text-xs">Active BD Owners in Database</div>
+            <div id="bdTeamSummaryList" class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: DATA & STORAGE -->
+        <div id="tabContent_data" class="settings-tab-content space-y-4 hidden">
+          <div class="p-3 bg-[#f8f8f8] border border-[#edebe9] rounded-[4px]">
+            <div class="text-xs font-semibold text-[#201f1e] mb-1">Local Browser IndexedDB Storage</div>
+            <div class="text-xs text-[#605e5c]">
+              Total Records Indexed: <strong id="settingTotalRecords" class="text-[#201f1e]">27,003</strong>
+            </div>
+            <p class="text-[11px] text-[#8a8886] mt-1">All BD reallocations, new contacts, and status changes are permanently saved in your local browser storage.</p>
+          </div>
+
+          <div class="space-y-2">
+            <button onclick="exportDatabaseBackupJson()" class="fluent-btn fluent-btn-default w-full justify-start gap-2 text-xs">
+              <i data-lucide="download" class="w-4 h-4 text-[#11a387]"></i>
+              Download Full Database JSON Backup
+            </button>
+            <button onclick="resetDatabaseToDefault()" class="fluent-btn fluent-btn-default w-full justify-start gap-2 text-xs text-[#a80000] hover:bg-[#fde7e9]">
+              <i data-lucide="rotate-ccw" class="w-4 h-4 text-[#a80000]"></i>
+              Restore Original Master Dataset (27,003 Records)
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 5: ABOUT -->
+        <div id="tabContent_about" class="settings-tab-content space-y-3 hidden">
+          <div class="flex items-center gap-3 p-3 bg-[#e7f6f3] border border-[#b2e3da] rounded-[4px]">
+            <div class="w-9 h-9 rounded bg-[#11a387] text-white flex items-center justify-center font-bold">
+              HS
+            </div>
+            <div>
+              <div class="text-xs font-bold text-[#0e8770]">Healthysure Corporate Renewal Intelligence</div>
+              <div class="text-[11px] text-[#605e5c]">Version 3.0 • Microsoft 365 Enterprise Edition</div>
+            </div>
+          </div>
+
+          <div class="space-y-1.5 text-[11px] text-[#605e5c]">
+            <p><strong>Official Website:</strong> <a href="https://www.healthysure.in" target="_blank" class="text-[#11a387] font-semibold hover:underline">https://www.healthysure.in</a></p>
+            <p><strong>Brand Color:</strong> <code class="bg-[#edebe9] px-1 rounded font-mono">#11a387</code> (Healthysure Teal)</p>
+            <p><strong>Database:</strong> 27,003 Indian corporate clients across key renewal months.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Settings Footer -->
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeSettingsModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="saveSettings()" class="fluent-btn fluent-btn-primary font-bold">
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== AI SPOC & CONTACT DISCOVERY DIALOG ==================== -->
+  <div id="enrichModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden fluent-animate-in">
+      
+      <!-- Dialog Header -->
+      <div class="px-6 py-3.5 border-b border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded bg-[#e7f6f3] text-[#11a387] flex items-center justify-center border border-[#b2e3da]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 id="enrichCompName" class="text-sm font-semibold text-[#201f1e]">Company Name</h3>
+            <p id="enrichDetailsSub" class="text-[11px] text-[#605e5c]">Renewal • BD • Size • City</p>
+          </div>
+        </div>
+        <button onclick="closeEnrichModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9] transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Dialog Body -->
+      <div class="p-6 overflow-y-auto flex-1 space-y-4 text-xs">
+        
+        <!-- Live Enterprise Buying Committee Channels -->
+        <div class="p-3 bg-[#f8f8f8] border border-[#edebe9] rounded-[4px]">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-semibold text-[#605e5c] uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="crosshair" class="w-3.5 h-3.5 text-[#11a387]"></i>
+              Enterprise Buying Committee Sourcing:
+            </span>
+            <span id="enrichSizeBadge" class="text-[10px] px-2 py-0.5 rounded font-semibold bg-[#e7f6f3] text-[#0e8770] border border-[#b2e3da]">Enterprise Mode</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <a id="linkLinkedInHR" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#6b21a8] hover:bg-[#f3e8ff] border border-[#d8b4fe]" title="Search HR Heads and Total Rewards on LinkedIn">
+              <i data-lucide="users" class="w-3.5 h-3.5 text-[#6b21a8]"></i>
+              HR & Total Rewards
+            </a>
+            <a id="linkLinkedInProcurement" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#c2410c] hover:bg-[#fff7ed] border border-[#fed7aa]" title="Search Procurement on LinkedIn">
+              <i data-lucide="briefcase" class="w-3.5 h-3.5 text-[#c2410c]"></i>
+              Procurement & Sourcing
+            </a>
+            <a id="linkLinkedInFinance" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#15803d] hover:bg-[#f0fdf4] border border-[#bbf7d0]" title="Search CFO & Finance Controller on LinkedIn">
+              <i data-lucide="credit-card" class="w-3.5 h-3.5 text-[#15803d]"></i>
+              Finance & Controller
+            </a>
+            <a id="linkGoogleDork" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#0078d4] hover:bg-white" title="Search indexed employee contacts on Google">
+              <i data-lucide="globe" class="w-3.5 h-3.5 text-[#0078d4]"></i>
+              Google Contact Search
+            </a>
+            <a id="linkZaubaCorp" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#8a3707] hover:bg-white" title="View statutory MCA ROC filings, registered email and directors">
+              <i data-lucide="building" class="w-3.5 h-3.5 text-[#8a3707]"></i>
+              MCA / ZaubaCorp
+            </a>
+            <a id="linkApollo" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#4f46e5] hover:bg-white" title="Open Apollo.io people search for this company">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-[#4f46e5]"></i>
+              Apollo.io
+            </a>
+            <a id="linkProspeo" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#0284c7] hover:bg-[#f0f9ff] border border-[#bae6fd]" title="Open Prospeo / ProspIQ email finder for this company">
+              <i data-lucide="mail-search" class="w-3.5 h-3.5 text-[#0284c7]"></i>
+              Prospeo Finder
+            </a>
+            <a id="linkLinkedInFounder" target="_blank" rel="noopener noreferrer" class="fluent-btn fluent-btn-default h-7 text-xs gap-1 text-[#605e5c] hover:bg-white hidden" title="Search Founders/CEOs">
+              <i data-lucide="user-check" class="w-3.5 h-3.5 text-[#605e5c]"></i>
+              Founders
+            </a>
+          </div>
+        </div>
+
+        <!-- AI Generator Action Bar -->
+        <div class="flex items-center justify-between p-3.5 bg-[#e7f6f3] border border-[#b2e3da] rounded-[4px]">
+          <div>
+            <div class="font-bold text-[#0e8770] text-xs flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-[#11a387]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+              </svg>
+              Enterprise AI SPOC Discovery (HR • Procurement • Finance)
+            </div>
+            <p class="text-[11px] text-[#0e8770]/80 mt-0.5">Discovers decision-makers across HR & Total Rewards, Procurement, and Finance, predicts verified work emails, and drafts Healthysure renewal hooks.</p>
+          </div>
+          <button id="btnRunAIEnrich" onclick="runAIEnrichmentForActive()" class="fluent-btn fluent-btn-primary gap-1.5 font-bold shadow-xs hover:shadow-md" title="Run Enterprise SPOC & Contact Enrichment">
+            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+            </svg>
+            <span>Enrich SPOCs with AI</span>
+          </button>
+        </div>
+
+        <!-- AI Output Box -->
+        <div id="aiResultsContainer" class="min-h-[120px] border border-[#edebe9] rounded-[4px] p-4 bg-[#faf9f8]">
+          <!-- Injected dynamically -->
+        </div>
+
+        <!-- Verified Contact Fields Form -->
+        <div class="p-4 bg-white border border-[#edebe9] rounded-[4px] space-y-3">
+          <div class="font-semibold text-[#201f1e] text-xs uppercase tracking-wider flex items-center justify-between">
+            <span>Primary Contact Record</span>
+            <span class="text-[11px] font-normal text-[#605e5c]">Save discovered contact to database</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Contact Person Name</label>
+              <input type="text" id="enrichInputContact" placeholder="e.g. Rahul Sharma" class="fluent-input w-full">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Designation</label>
+              <input type="text" id="enrichInputDesignation" placeholder="e.g. Head of HR / CHRO" class="fluent-input w-full">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Email ID</label>
+              <input type="email" id="enrichInputEmail" placeholder="e.g. rahul.sharma@company.com" class="fluent-input w-full">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Phone Number</label>
+              <input type="text" id="enrichInputPhone" placeholder="e.g. 9820123456" class="fluent-input w-full">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Remarks / Renewal Notes</label>
+              <input type="text" id="enrichInputRemarks" placeholder="e.g. Policy expiring next month, prefers GMC with OPD..." class="fluent-input w-full">
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Dialog Footer -->
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeEnrichModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="saveEnrichmentModal()" class="fluent-btn fluent-btn-primary gap-1 font-semibold">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          Save to Record
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== EDIT COMPANY RECORD DIALOG ==================== -->
+  <div id="companyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden fluent-animate-in">
+      <div class="px-6 py-3.5 border-b border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <h3 id="modalCompName" class="text-sm font-semibold text-[#201f1e]">Edit Company Details</h3>
+        <button onclick="closeCompanyModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto flex-1 space-y-3.5 text-xs">
+        <input type="hidden" id="modalCompId">
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Company Name</label>
+            <input type="text" id="editName" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Renewal Month</label>
+            <input type="text" id="editMonth" class="fluent-input w-full">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Renewal Date (YYYY-MM-DD)</label>
+            <input type="text" id="editDate" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Employee Strength</label>
+            <input type="text" id="editStrength" oninput="autoComputeEditSize(this.value)" class="fluent-input w-full">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Company Size</label>
+            <select id="editSize" class="fluent-select w-full">
+              <option value="Small">Small (&lt; 50 emp)</option>
+              <option value="Medium">Medium (50 - 200 emp)</option>
+              <option value="Large">Large (&gt; 200 emp)</option>
+            </select>
+          </div>
+
+          <!-- City / Location -->
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">City / Location</label>
+            <input type="text" id="editLocation" class="fluent-input w-full" placeholder="e.g. Bangalore, Mumbai">
+          </div>
+
+          <!-- BD Owner -->
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">BD Owner</label>
+            <input type="text" id="editBD" class="fluent-input w-full" placeholder="BD Member Name">
+          </div>
+
+          <!-- Data Source -->
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Data Source</label>
+            <select id="editDataSource" class="fluent-select w-full">
+              <option value="Team Member">Team Member</option>
+              <option value="Insurer">Insurer</option>
+              <option value="TPA">TPA</option>
+              <option value="Claim Tech">Claim Tech</option>
+              <option value="Channel Partner">Channel Partner</option>
+              <option value="Broker">Broker</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Outreach Status</label>
+            <select id="editStatus" class="fluent-select w-full">
+              <option value="new">New</option>
+              <option value="ai_enriched">AI Enriched</option>
+              <option value="contacted">Contacted</option>
+              <option value="meeting">Meeting Scheduled</option>
+              <option value="converted">Won / Closed</option>
+              <option value="lost">Lost</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Contact Person Name</label>
+            <input type="text" id="editContact" class="fluent-input w-full">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Designation</label>
+            <input type="text" id="editDesignation" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Email</label>
+            <input type="email" id="editEmail" class="fluent-input w-full">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Phone</label>
+            <input type="text" id="editPhone" class="fluent-input w-full">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Current Insurer (if known)</label>
+            <input type="text" id="editInsurer" class="fluent-input w-full">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Current Broker (if known)</label>
+            <input type="text" id="editBroker" class="fluent-input w-full">
+          </div>
+
+          <div class="col-span-2">
+            <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Remarks & Notes</label>
+            <textarea id="editRemarks" rows="2" class="fluent-input w-full h-16 pt-2 resize-none"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeCompanyModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="saveCompanyModal()" class="fluent-btn fluent-btn-primary font-semibold">
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== BATCH ENRICHMENT PROGRESS DIALOG ==================== -->
+  <div id="batchProgressModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-md w-full p-6 space-y-4 text-center fluent-animate-in">
+      <div class="w-10 h-10 rounded-full bg-[#e7f6f3] text-[#11a387] mx-auto flex items-center justify-center animate-pulse border border-[#b2e3da]">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+        </svg>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-[#201f1e]">Enriching Records with AI</h3>
+        <p id="batchProgressText" class="text-xs text-[#605e5c] mt-1">Starting batch enrichment...</p>
+      </div>
+
+      <div class="w-full bg-[#edebe9] rounded-full h-2 overflow-hidden">
+        <div id="batchProgressBar" class="bg-[#11a387] h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+
+      <div class="pt-1">
+        <button onclick="cancelBatchEnrichment()" class="fluent-btn fluent-btn-default h-7 text-xs">
+          Cancel Operation
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== HEALTHYSURE RENEWAL COPILOT SIDE DRAWER ==================== -->
+  <div id="copilotDrawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl border-l border-[#edebe9] flex flex-col transform translate-x-full transition-transform duration-250 ease-out">
+    
+    <!-- Drawer Header -->
+    <div class="px-4 py-3 border-b border-[#edebe9] flex items-center justify-between bg-white">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded bg-gradient-to-br from-[#11a387] to-[#0e8770] text-white flex items-center justify-center shadow-xs">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L14.2 8.2L20.4 10.4L14.2 12.6L12 18.8L9.8 12.6L3.6 10.4L9.8 8.2L12 2Z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-[#201f1e] leading-tight">Healthysure Renewal Copilot</h3>
+          <p class="text-[10px] text-[#605e5c]">AI Dataset Strategist & Pitch Generator</p>
+        </div>
+      </div>
+      <button onclick="toggleCopilotDrawer()" class="p-1 text-[#605e5c] hover:text-[#201f1e] hover:bg-[#f3f2f1] rounded transition-colors">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="copilotMessagesList" class="flex-1 overflow-y-auto p-4 space-y-3 text-xs bg-[#faf9f8]">
+      <!-- Messages injected dynamically -->
+    </div>
+
+    <!-- Interactive AI Quick Dataset Queries -->
+    <div class="px-3 py-2 bg-white border-t border-[#edebe9] flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11px]">
+      <button onclick="askCopilotPrebuilt('overview')" class="px-2 py-1 bg-[#f8faf9] hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] rounded-[4px] whitespace-nowrap font-medium" title="Run instant live dataset analytics">
+        📊 Dataset Stats
+      </button>
+      <button onclick="askCopilotPrebuilt('large_renewals')" class="px-2 py-1 bg-[#f8faf9] hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] rounded-[4px] whitespace-nowrap font-medium" title="Find top large enterprises renewing next 30 days">
+        🎯 Next 30D Large Cos
+      </button>
+      <button onclick="askCopilotPrebuilt('city_breakdown')" class="px-2 py-1 bg-[#f8faf9] hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] rounded-[4px] whitespace-nowrap font-medium" title="Analyze companies by city for BD allocation">
+        🏙️ City Breakdown
+      </button>
+      <button onclick="askCopilotPrebuilt('bd_reassign')" class="px-2 py-1 bg-[#f8faf9] hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] rounded-[4px] whitespace-nowrap font-medium" title="Check ex-employee accounts needing reallocation">
+        🔄 Ex-Employee Accounts
+      </button>
+      <button onclick="askCopilotPrebuilt('healthysure_pitch')" class="px-2 py-1 bg-[#f8faf9] hover:bg-[#e7f6f3] border border-[#b2e3da] text-[#0e8770] rounded-[4px] whitespace-nowrap font-medium" title="Get Healthysure corporate wellness & GMC pitch templates">
+        ✉️ Pitch vs Incumbent
+      </button>
+    </div>
+
+    <!-- Input Footer -->
+    <div class="p-3 border-t border-[#edebe9] bg-white">
+      <div class="flex items-end gap-1.5 border border-[#8a8886] rounded-[4px] p-1.5 focus-within:border-[#11a387] focus-within:ring-1 focus-within:ring-[#11a387]">
+        <textarea id="copilotInput" rows="2" placeholder="Ask Copilot about renewals, decision-makers, pitches, or dataset queries..." class="flex-1 bg-transparent border-0 outline-none text-xs resize-none p-1 text-[#201f1e] placeholder-[#605e5c]"></textarea>
+        <button onclick="sendCopilotMessage()" class="fluent-btn fluent-btn-primary h-7 w-7 p-0 shrink-0" title="Send Message">
+          <i data-lucide="send" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==================== INITIAL LOADING OVERLAY ==================== -->
+  <div id="loadingOverlay" class="fixed inset-0 z-50 flex items-center justify-center fluent-modal-overlay hidden">
+    <div class="fluent-modal-content p-6 max-w-sm w-full text-center space-y-3">
+      <div class="w-9 h-9 rounded-full bg-[#e7f6f3] text-[#11a387] mx-auto flex items-center justify-center animate-spin border border-[#b2e3da]">
+        <i data-lucide="loader-2" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-[#201f1e]">Healthysure Dataverse</h3>
+        <p id="loadingMessage" class="text-xs text-[#605e5c] mt-1">Initializing 27,003 companies...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== FLUENT TOAST NOTIFICATION ==================== -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-3.5 py-2 bg-[#201f1e] text-white rounded-[4px] shadow-lg text-xs font-medium transform translate-y-20 opacity-0 transition-all duration-200 pointer-events-none">
+    <span id="toastIcon" class="text-[#11a387]"><i data-lucide="check" class="w-4 h-4"></i></span>
+    <span id="toastMessage">Action completed</span>
+  </div>
+
+  <!-- ==================== CRM EXPORT WIZARD MODAL (12K TARGET) ==================== -->
+  <div id="crmExportModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-lg w-full flex flex-col overflow-hidden fluent-animate-in">
+      <div class="px-6 py-4 border-b border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded bg-[#e7f6f3] text-[#11a387] flex items-center justify-center border border-[#b2e3da]">
+            <i data-lucide="zap" class="w-4 h-4 text-[#11a387]"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-[#201f1e]">Export for CRM (12,000 Lead Growth)</h3>
+            <p class="text-[11px] text-[#605e5c]">Format verified corporate accounts for HubSpot, LeadSquared, Zoho & Salesforce</p>
+          </div>
+        </div>
+        <button onclick="closeCrmExportModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4 text-xs">
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Batch Size Preset</label>
+          <select id="crmExportBatchPreset" onchange="updateCrmExportPreview()" class="fluent-select w-full">
+            <option value="1000" selected>Top 1,000 Accounts (Recommended Monthly CRM Batch)</option>
+            <option value="500">Top 500 Sprint Accounts</option>
+            <option value="2500">Top 2,500 Accounts (Quarterly Expansion)</option>
+            <option value="ALL">All Filtered Records (Full Export)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Renewal Horizon Filter</label>
+          <select id="crmExportRenewalWindow" onchange="updateCrmExportPreview()" class="fluent-select w-full">
+            <option value="60" selected>Next 60 Days Renewals (Peak Outreach & RFP Window)</option>
+            <option value="90">Next 90 Days Renewals</option>
+            <option value="180">Next 6 Months Renewals</option>
+            <option value="ALL">All 12 Months</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Data Quality Standard</label>
+          <select id="crmExportQuality" onchange="updateCrmExportPreview()" class="fluent-select w-full">
+            <option value="VERIFIED_ONLY" selected>High Quality: Verified SPOC Name & Email Required</option>
+            <option value="HAS_ANY_CONTACT">Flexible: Has SPOC, Email, OR Phone</option>
+            <option value="ALL">All Accounts (Including Unenriched)</option>
+          </select>
+        </div>
+
+        <div class="p-3 bg-[#f8faf9] border border-[#b2e3da] rounded-[4px] space-y-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-[#605e5c]">Estimated Matching Accounts:</span>
+            <strong id="crmExportPreviewCount" class="font-bold text-[#0e8770]">Calculating...</strong>
+          </div>
+          <p class="text-[11px] text-[#605e5c]">
+            Includes multi-stakeholder columns (HR SPOC, Finance SPOC, Procurement, Verified Email, Phone, BD Owner & Aligned Closer).
+          </p>
+        </div>
+
+        <!-- Admin Master Password for CRM Export -->
+        <div class="pt-2 border-t border-[#edebe9]">
+          <label class="block text-[11px] font-semibold text-[#605e5c] mb-1">Admin Password Verification Required</label>
+          <div class="relative">
+            <input 
+              type="password" 
+              id="crmExportAdminPassword" 
+              placeholder="Enter Admin Password..." 
+              class="fluent-input w-full pr-10 font-mono"
+              onkeydown="if(event.key==='Enter') executeCrmExport();"
+            >
+            <button type="button" onclick="togglePasswordVisibility('crmExportAdminPassword')" class="absolute right-2 top-2 text-[#605e5c] hover:text-[#201f1e]">
+              <i data-lucide="eye" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div id="crmExportPasswordError" class="text-[#a80000] text-[11px] mt-1 hidden font-medium">
+            Incorrect admin password. Exports are restricted to authorized administrators.
+          </div>
+          <div class="mt-2 flex items-center justify-between text-[11px]">
+            <span class="text-[#605e5c]">Admin authorization required</span>
+            <button type="button" onclick="openAdminPasswordChangeDirect()" class="text-[#11a387] hover:underline font-semibold flex items-center gap-1">
+              <i data-lucide="key" class="w-3 h-3"></i>
+              <span>Change Admin Password</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeCrmExportModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="executeCrmExport()" class="fluent-btn fluent-btn-primary gap-1.5 font-semibold">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Download CRM Excel File</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== LOG MEETING BOOKED MODAL ==================== -->
+  <div id="logMeetingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-md w-full flex flex-col overflow-hidden fluent-animate-in">
+      <div class="px-6 py-4 border-b border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded bg-[#e7f6f3] text-[#11a387] flex items-center justify-center border border-[#b2e3da]">
+            <i data-lucide="calendar-check" class="w-4 h-4 text-[#11a387]"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-[#201f1e]">Log Booked Meeting</h3>
+            <p class="text-[11px] text-[#605e5c]">Track weekly progress towards your 30-32 meeting goal</p>
+          </div>
+        </div>
+        <button onclick="closeLogMeetingModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-3.5 text-xs">
+        <input type="hidden" id="meetingCompId">
+        
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Company Name</label>
+          <input type="text" id="meetingCompName" class="fluent-input w-full" placeholder="e.g. Acme Tech Solutions">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-[#323130] mb-1">BD Rep</label>
+            <select id="meetingBdRep" class="fluent-select w-full">
+              <option value="Aditi">Aditi Jain</option>
+              <option value="Charan">Charan</option>
+              <option value="Vimlendu">Vimlendu</option>
+              <option value="Sudipto">Sudipto</option>
+              <option value="Deepesh">Deepesh</option>
+              <option value="Vipul">Vipul</option>
+              <option value="Backup">BD Float / Backup</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-[#323130] mb-1">Meeting Date</label>
+            <input type="date" id="meetingDate" class="fluent-input w-full">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Decision Maker Met</label>
+          <input type="text" id="meetingSpocName" class="fluent-input w-full" placeholder="e.g. Swati (Head of HR) or CFO">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Meeting Notes / Agenda</label>
+          <textarea id="meetingNotes" rows="2" class="fluent-input w-full h-16 pt-2 resize-none" placeholder="e.g. Group health insurance benchmark discussion, 120 employees, current insurer Star Health."></textarea>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeLogMeetingModal()" class="fluent-btn fluent-btn-default">
+          Cancel
+        </button>
+        <button onclick="saveMeetingLog()" class="fluent-btn fluent-btn-primary gap-1.5 font-semibold">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>Confirm & Add to Weekly Goal</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== FOUNDER REVIEW & FEEDBACK MODAL ==================== -->
+  <div id="feedbackModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 fluent-modal-overlay hidden">
+    <div class="fluent-modal-content max-w-lg w-full flex flex-col overflow-hidden fluent-animate-in">
+      <div class="px-6 py-4 border-b border-[#edebe9] bg-[#faf9f8] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-[#e7f6f3] text-[#0e8770] flex items-center justify-center shadow-2xs">
+            <svg class="w-4 h-4 text-[#11a387]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-[#201f1e]">Founder Review &amp; Change Requests</h3>
+            <p class="text-[11px] text-[#605e5c]">Direct feedback synced to development team</p>
+          </div>
+        </div>
+        <button onclick="closeFeedbackModal()" class="text-[#605e5c] hover:text-[#201f1e] p-1 rounded hover:bg-[#edebe9]">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-3.5 text-xs">
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Feedback Category</label>
+          <select id="fbCategory" class="fluent-select w-full">
+            <option value="UI & Theme Review">UI / Visual Theme &amp; Colors</option>
+            <option value="BD Cockpit & Targets">BD Cockpit &amp; Sales Targets (30-32 mtgs / 25 accs)</option>
+            <option value="Data & Columns">Database Fields &amp; Enrichment</option>
+            <option value="General Suggestion">General Strategic Suggestion</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Your Name / Reviewer</label>
+          <input type="text" id="fbAuthor" class="fluent-input w-full" value="Founder" placeholder="e.g. Founder / Leadership">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Detailed Change Request or Notes</label>
+          <textarea id="fbNotes" rows="4" class="fluent-input w-full h-28 pt-2 resize-none" placeholder="e.g. Looks good! Can we add industry filter prominently? Also let's adjust the BD target to 28 accounts for next month..."></textarea>
+        </div>
+
+        <div id="fbSuccessMsg" class="hidden p-2.5 rounded bg-green-50 border border-green-200 text-green-700 text-xs font-medium">
+          ✓ Thank you! Your feedback has been recorded and synced to the repository.
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-[#edebe9] flex items-center justify-between bg-[#faf9f8]">
+        <button onclick="closeFeedbackModal()" class="fluent-btn fluent-btn-default">
+          Close
+        </button>
+        <button onclick="submitFounderFeedback()" class="fluent-btn fluent-btn-primary gap-1.5 font-semibold">
+          <i data-lucide="send" class="w-4 h-4"></i>
+          <span>Submit Review Notes</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION SCRIPTS -->
+  <script src="companies_data.js"></script>
+  <script src="app.js?v=4.2"></script>
+</body>
+</html>
