@@ -13,6 +13,7 @@ const ITERATIONS = 100000;            // Workers' PBKDF2 maximum
 const MIN_PASSWORD_LENGTH = 10;
 const WINDOW_SECONDS = 15 * 60;
 const MAX_FAILS_PER_USER = 5;
+const MAX_FAILS_GLOBAL = 40;          // backstop: needs ~8 different mailboxes failing at once to trip
 const ACTIONS = new Set(['excel_export', 'crm_export', 'change_password']);
 
 const enc = new TextEncoder();
@@ -44,15 +45,17 @@ async function checkPassword(env, password) {
 // pending (ok = 0) row only while this user is under the limit. Parallel guesses therefore cannot
 // all pass a check-then-insert gap. The row is flipped to ok = 1 if the password turns out correct.
 // Throttling is per signed-in user only (an office/VPN shares one IP, so IP lockouts would let one
-// person block everyone); the IP is recorded in the audit log for investigation.
+// person block everyone); the IP is recorded in the audit log for investigation. A high global
+// failure cap backstops attackers who control many mailboxes.
 async function reserveAttempt(env, email, ip, action) {
   const now = nowSec();
   const row = await env.DB.prepare(
     `INSERT INTO admin_audit (email, ip, action, ok, created_at)
      SELECT ?1, ?2, ?3, 0, ?4
      WHERE (SELECT COUNT(*) FROM admin_audit WHERE email = ?1 AND ok = 0 AND created_at > ?5) < ?6
+       AND (SELECT COUNT(*) FROM admin_audit WHERE ok = 0 AND created_at > ?5) < ?7
      RETURNING id`
-  ).bind(email, ip, action, now, now - WINDOW_SECONDS, MAX_FAILS_PER_USER).first();
+  ).bind(email, ip, action, now, now - WINDOW_SECONDS, MAX_FAILS_PER_USER, MAX_FAILS_GLOBAL).first();
   if (!row) throw new AuthError(429, 'Too many incorrect attempts. Try again in a few minutes.');
   return row.id;
 }

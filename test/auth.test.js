@@ -9,6 +9,12 @@ test('normalizeEmail accepts normal addresses and rejects junk', () => {
   }
 });
 
+test('normalizeEmail strips +tag sub-addressing so aliases share one identity', () => {
+  assert.equal(normalizeEmail('Risvan+1@bharatsure.com'), 'risvan@bharatsure.com');
+  assert.equal(normalizeEmail('a+b+c@healthysure.in'), 'a@healthysure.in');
+  assert.equal(normalizeEmail('+tag@bharatsure.com'), null);
+});
+
 test('allowlist: exact domain match only, or explicit address', () => {
   const env = { ALLOWED_EMAIL_DOMAINS: 'bharatsure.com, @healthysure.in', ALLOWED_EMAILS: 'guest@gmail.com' };
   assert.ok(isAllowedEmail('a@bharatsure.com', env));

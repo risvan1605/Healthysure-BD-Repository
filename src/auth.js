@@ -51,7 +51,11 @@ export function normalizeEmail(raw) {
   const e = String(raw || '').trim().toLowerCase();
   if (e.length < 3 || e.length > 254) return null;
   if (!/^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(e)) return null; // exactly one '@', no spaces/commas
-  return e;
+  // Canonical identity: drop "+tag" sub-addressing. user+1@x.com and user+2@x.com are one mailbox, so
+  // they must share one rate-limit budget, one audit identity and one session owner.
+  const [local, domain] = e.split('@');
+  const base = local.split('+')[0];
+  return base ? `${base}@${domain}` : null;
 }
 
 const csv = (v) => String(v || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
