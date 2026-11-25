@@ -52,6 +52,15 @@ async function getJwks(teamDomain) {
 }
 
 export async function verifyAccessJwt(token, teamDomain, aud, jwks) {
+  try {
+    return await verifyAccessJwtInner(token, teamDomain, aud, jwks);
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(401, 'Invalid Access token'); // malformed token / bad base64 / bad JSON
+  }
+}
+
+async function verifyAccessJwtInner(token, teamDomain, aud, jwks) {
   const parts = (token || '').split('.');
   if (parts.length !== 3) throw new HttpError(401, 'Missing or malformed Access token');
   const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));

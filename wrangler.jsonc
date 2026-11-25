@@ -22,7 +22,7 @@
   // closed (HTTP 500 "Auth not configured") until both are set, and then rejects any request
   // (pages, data file, API) without a valid Access JWT.
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_TEAM_DOMAIN": "bharatsure-qa-studio-pages.cloudflareaccess.com",
+    "ACCESS_AUD": "0f9af640ca02057d286ebfb34bdd0a4558f3c419477fb96d20f931161b9daa7a"
   }
 }
