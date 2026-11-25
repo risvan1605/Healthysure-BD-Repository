@@ -11,7 +11,8 @@
     try {
       localStorage.removeItem('hs_bd_auth');
       sessionStorage.removeItem('hs_bd_auth');
-      document.documentElement.classList.remove('bd-authenticated');
+      localStorage.removeItem('hs_bd_login_hash');
+      localStorage.removeItem('hs_bd_login_b64');
       if (localStorage.getItem('hs_admin_password_hash') === 'ffcfa9389f6a158158c4ea27c5bf559e7fe6569476f8f4112bf0408c646a3d58') {
         localStorage.removeItem('hs_admin_password_hash');
         localStorage.removeItem('hs_admin_password_b64');
@@ -27,133 +28,6 @@
 </head>
 <body class="bg-[#faf9f8] text-[#323130] antialiased min-h-screen flex flex-col selection:bg-[#e7f6f3] selection:text-[#0e8770]">
 
-  <!-- ==================== BD CENTRAL REPOSITORY AUTH OVERLAY ==================== -->
-  <div id="bdAuthOverlay" class="fixed inset-0 z-[99999] flex items-center justify-center p-4 transition-opacity duration-300" style="background-color: #095244;">
-    <div id="bdAuthCard" class="w-full max-w-[420px] bg-white rounded-[26px] p-8 sm:p-9 shadow-2xl relative select-none">
-      
-      <!-- Brand Logo -->
-      <div class="flex items-center gap-2.5 mb-6">
-        <div class="w-9 h-9 rounded-xl bg-[#11a387] flex items-center justify-center text-white shadow-xs">
-          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-        </div>
-        <span class="text-xl font-bold tracking-tight text-[#111827]">Healthysure</span>
-      </div>
-
-      <!-- Heading -->
-      <div class="mb-6">
-        <h1 class="text-[25px] font-bold text-[#111827] tracking-tight leading-tight">BD Central Repository</h1>
-        <p class="text-[13px] text-[#6b7280] mt-1 font-normal">Enter your credentials to continue</p>
-      </div>
-
-      <!-- Auth Form -->
-      <form id="bdLoginForm" onsubmit="handleBDLogin(event)" class="space-y-4">
-        <!-- Error Notification Banner -->
-        <div id="bdLoginError" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
-          <svg class="w-4 h-4 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span id="bdLoginErrorText">Invalid Login ID or Password.</span>
-        </div>
-
-        <!-- Login ID Field -->
-        <div>
-          <label for="bdLoginId" class="block text-xs font-semibold text-[#374151] mb-1.5">Login ID</label>
-          <input 
-            type="text" 
-            id="bdLoginId" 
-            name="username"
-            autocomplete="username"
-            placeholder="Enter Login ID" 
-            required 
-            class="w-full px-4 py-3 rounded-xl text-sm text-[#111827] bg-[#F4FAF8] border border-[#d1e7e0] focus:outline-none focus:border-[#11a387] focus:ring-2 focus:ring-[#11a387]/20 transition-all placeholder:text-[#9ca3af]"
-          >
-        </div>
-
-        <!-- Password Field -->
-        <div>
-          <label for="bdLoginPassword" class="block text-xs font-semibold text-[#374151] mb-1.5">Password</label>
-          <div class="relative">
-            <input 
-              type="password" 
-              id="bdLoginPassword" 
-              name="password"
-              autocomplete="current-password"
-              placeholder="••••••••" 
-              required 
-              class="w-full px-4 py-3 rounded-xl text-sm text-[#111827] bg-[#F4FAF8] border border-[#d1e7e0] focus:outline-none focus:border-[#11a387] focus:ring-2 focus:ring-[#11a387]/20 transition-all placeholder:text-[#9ca3af] tracking-widest"
-            >
-            <button 
-              type="button" 
-              onclick="togglePasswordVisibility()" 
-              class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#9ca3af] hover:text-[#4b5563] transition-colors"
-              title="Toggle password visibility"
-            >
-              <svg id="eyeIconOpen" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              <svg id="eyeIconClosed" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Submit Button -->
-        <button 
-          type="submit" 
-          id="bdLoginBtn"
-          class="w-full py-3.5 px-4 rounded-xl font-semibold text-sm text-white shadow-sm hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2 mt-3 cursor-pointer" 
-          style="background-color: #095244;"
-        >
-          <span>Unlock Repository</span>
-        </button>
-
-        <div class="pt-2 text-center">
-          <button type="button" onclick="openLoginPasswordChangeModal()" class="text-xs text-[#095244] hover:underline font-medium">
-            Change Portal Password
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ==================== CHANGE PORTAL LOGIN PASSWORD MODAL (ON LOGIN SCREEN) ==================== -->
-  <div id="loginPassModal" class="fixed inset-0 z-[100000] flex items-center justify-center p-4 fluent-modal-overlay hidden">
-    <div class="fluent-modal-content max-w-sm w-full p-6 space-y-4 fluent-animate-in bg-white rounded-2xl shadow-2xl">
-      <div class="flex items-center justify-between pb-2 border-b border-[#edebe9]">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg bg-[#e7f6f3] text-[#11a387] flex items-center justify-center font-bold">
-            <i data-lucide="key" class="w-4 h-4 text-[#11a387]"></i>
-          </div>
-          <h3 class="text-sm font-bold text-[#201f1e]">Change Portal Password</h3>
-        </div>
-        <button type="button" onclick="closeLoginPasswordChangeModal()" class="text-[#605e5c] hover:text-[#201f1e]">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-      </div>
-
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Current Portal Password</label>
-          <input type="password" id="modalCurLoginPass" placeholder="••••••••" class="fluent-input w-full font-mono">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-[#323130] mb-1">New Password</label>
-          <input type="password" id="modalNewLoginPass" placeholder="••••••••" class="fluent-input w-full font-mono">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold text-[#323130] mb-1">Confirm New Password</label>
-          <input type="password" id="modalConfLoginPass" placeholder="••••••••" class="fluent-input w-full font-mono">
-        </div>
-        <div id="modalLoginPassMsg" class="hidden text-[11px] font-medium"></div>
-      </div>
-
-      <div class="flex justify-between items-center pt-2 border-t border-[#edebe9]">
-        <button type="button" onclick="closeLoginPasswordChangeModal()" class="fluent-btn fluent-btn-default text-xs">
-          Cancel
-        </button>
-        <button type="button" onclick="submitLoginPasswordChangeModal()" class="fluent-btn fluent-btn-primary text-xs font-semibold" style="background-color: #095244;">
-          Update Password
-        </button>
-      </div>
-    </div>
-  </div>
 
   <!-- ==================== MICROSOFT 365 SUITE BAR ==================== -->
   <header class="fluent-suitebar flex items-center justify-between px-3 z-30 select-none shrink-0 shadow-xs relative">
@@ -227,12 +101,12 @@
       </button>
 
       <!-- Lock Portal Trigger -->
-      <button onclick="lockRepository()" class="px-2.5 py-1.5 hover:bg-white/10 rounded flex items-center gap-1.5 text-xs text-white/90 font-medium transition-colors" title="Lock BD Central Repository">
+      <button onclick="lockRepository()" class="px-2.5 py-1.5 hover:bg-white/10 rounded flex items-center gap-1.5 text-xs text-white/90 font-medium transition-colors" title="Sign out">
         <svg class="w-3.5 h-3.5 text-white/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
           <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
         </svg>
-        <span class="hidden sm:inline">Lock</span>
+        <span class="hidden sm:inline">Sign out</span>
       </button>
 
       <div class="h-4 w-px bg-white/20 mx-1"></div>
@@ -1225,44 +1099,6 @@
 
         <!-- TAB 2: EXPORT & ACCESS SECURITY -->
         <div id="tabContent_security" class="settings-tab-content space-y-4 hidden">
-          <!-- Card 1: Portal Login Password -->
-          <div class="p-3.5 bg-[#faf9f8] border border-[#edebe9] rounded-[4px] space-y-3">
-            <div class="font-semibold text-[#201f1e] flex items-center justify-between">
-              <div class="flex items-center gap-1.5">
-                <i data-lucide="key" class="w-4 h-4 text-[#11a387]"></i>
-                <span>1. Portal Login Password (BD Dashboard Access)</span>
-              </div>
-              <span class="text-[10px] bg-[#e7f6f3] text-[#0e8770] px-2 py-0.5 rounded font-semibold border border-[#a1ded3]">General Access</span>
-            </div>
-            <p class="text-[11px] text-[#605e5c] leading-relaxed">
-              This password unlocks the BD Central Repository on initial login for the BD team and leadership.
-            </p>
-
-            <div class="pt-2 border-t border-[#edebe9] space-y-2.5">
-              <div>
-                <label class="block text-[11px] font-medium text-[#605e5c] mb-1">Current Portal Password</label>
-                <input type="password" id="inputCurrentLoginPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
-              </div>
-
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-[11px] font-medium text-[#605e5c] mb-1">New Password</label>
-                  <input type="password" id="inputNewLoginPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
-                </div>
-                <div>
-                  <label class="block text-[11px] font-medium text-[#605e5c] mb-1">Confirm New Password</label>
-                  <input type="password" id="inputConfirmLoginPassword" placeholder="••••••••" class="fluent-input w-full font-mono">
-                </div>
-              </div>
-
-              <div id="loginPassChangeMsg" class="hidden text-[11px] font-medium"></div>
-
-              <button type="button" onclick="changeLoginPassword()" class="fluent-btn fluent-btn-default text-xs mt-1 font-semibold">
-                Update Portal Password
-              </button>
-            </div>
-          </div>
-
           <!-- Card 2: Admin Master Password -->
           <div class="p-3.5 bg-[#faf9f8] border border-[#edebe9] rounded-[4px] space-y-3">
             <div class="font-semibold text-[#201f1e] flex items-center justify-between">
