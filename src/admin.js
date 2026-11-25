@@ -13,7 +13,9 @@ const ITERATIONS = 100000;            // Workers' PBKDF2 maximum
 const MIN_PASSWORD_LENGTH = 10;
 const WINDOW_SECONDS = 15 * 60;
 const MAX_FAILS_PER_USER = 5;
-const MAX_FAILS_GLOBAL = 40;          // backstop: needs ~8 different mailboxes failing at once to trip
+// Backstop against many-mailbox guessing: ~8 different people failing at once trips it. It never
+// applies to password changes or to users who already passed the check in the window.
+const MAX_FAILS_GLOBAL = 40;
 const ACTIONS = new Set(['excel_export', 'crm_export', 'change_password']);
 
 const enc = new TextEncoder();
@@ -53,7 +55,11 @@ async function reserveAttempt(env, email, ip, action) {
     `INSERT INTO admin_audit (email, ip, action, ok, created_at)
      SELECT ?1, ?2, ?3, 0, ?4
      WHERE (SELECT COUNT(*) FROM admin_audit WHERE email = ?1 AND ok = 0 AND created_at > ?5) < ?6
-       AND (SELECT COUNT(*) FROM admin_audit WHERE ok = 0 AND created_at > ?5) < ?7
+       AND (
+         ?3 = 'change_password'
+         OR EXISTS (SELECT 1 FROM admin_audit WHERE email = ?1 AND ok = 1 AND created_at > ?5)
+         OR (SELECT COUNT(*) FROM admin_audit WHERE ok = 0 AND created_at > ?5) < ?7
+       )
      RETURNING id`
   ).bind(email, ip, action, now, now - WINDOW_SECONDS, MAX_FAILS_PER_USER, MAX_FAILS_GLOBAL).first();
   if (!row) throw new AuthError(429, 'Too many incorrect attempts. Try again in a few minutes.');
