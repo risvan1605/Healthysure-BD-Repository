@@ -10,3 +10,9 @@ desktop.ini
 
 # Temporary files
 *.tmp
+
+# Node / Cloudflare
+node_modules/
+.wrangler/
+.dev.vars
+.playwright-mcp/

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "healthysure-bd",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "healthysure-bd",
+      // Replace with the id printed by: npx wrangler d1 create healthysure-bd
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // REQUIRED in production: values from your Cloudflare Access application. The Worker fails
+  // closed (HTTP 500 "Auth not configured") until both are set, and then rejects any request
+  // (pages, data file, API) without a valid Access JWT.
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
+}

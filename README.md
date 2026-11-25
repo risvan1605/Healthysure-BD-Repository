@@ -6,17 +6,16 @@ Pre-loaded with **27,003 Indian companies** with renewal dates, employee sizes, 
 
 ---
 
-## 🚀 Quick Start (Instant Launch)
+## 🚀 Run & Deploy
 
-You can run this application in **any browser** with zero installation:
+Hosted on **Cloudflare Workers** (static app + API + D1 shared database), auto-deployed from GitHub.
+Edits made by any BD member are shared live with everyone. See **[plan.md](plan.md)** for setup and architecture.
 
-### Option 1: Direct Launch (Recommended)
-Double-click **`start_app.bat`** or double-click **`index.html`**.
-> Opens instantly in Chrome, Edge, Brave, or Firefox. 100% offline-ready, no dependencies required.
-
-### Option 2: Local HTTP Server
-Double-click **`start_server.bat`**.
-> Launches a lightweight built-in local server and opens `http://localhost:8080`.
+```bash
+npm install
+npm run db:migrate:local   # local D1
+npm run dev                # http://localhost:8787
+```
 
 ---
 
@@ -94,16 +93,10 @@ Click **"AI Copilot"** in the top-right corner to open the sliding assistant dra
 ## 📁 Project Structure
 
 ```text
-HS/
-├── index.html            # Main UI Dashboard (Responsive, Tailwind CSS, Lucide)
-├── app.js                # Core engine: IndexedDB, OpenAI Client, Search, Filters
-├── app.css               # Styling, custom theme, badge tags, modal transitions
-├── companies_data.js     # Pre-extracted 27,003 dataset for instant browser loading
-├── companies.json        # Clean JSON dump of all 27,003 companies
-├── companies.csv         # Clean CSV dump of all 27,003 companies
-├── extract.ps1           # Extraction script to parse All Renewal Database.xlsm
-├── start_app.bat         # 1-Click launcher to open in default browser
-├── start_server.bat      # 1-Click launcher for local HTTP server
-├── server.ps1            # Lightweight PowerShell HTTP server on port 8080
-└── README.md             # Documentation
+public/                 # Served app: index.html, app.js, app.css, companies_data.js (27k baseline)
+src/worker.js           # Cloudflare Worker: /api/sync, /api/companies, /api/feedback, /api/prospeo
+migrations/             # D1 schema migrations
+wrangler.jsonc          # Cloudflare config
+companies.json / .csv   # Data exports (not deployed)
+plan.md                 # Deployment plan & runbook
 ```

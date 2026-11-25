@@ -226,15 +226,189 @@ async function saveCompaniesToDB(companiesList, onProgress) {
   });
 }
 
-async function updateCompanyInDB(company) {
+async function updateCompanyInDB(company, opts) {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     store.put(company);
     tx.oncomplete = () => resolve(true);
     tx.onerror = (e) => reject(e.target.error);
   });
+  // Every local edit is also pushed to the shared server database.
+  if (!(opts && opts.skipSync)) syncQueue([company]);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Shared live sync (Cloudflare Worker + D1)
+// The static dataset (companies_data.js) is the baseline. Every edit/new record is pushed to the
+// server as a full-record override; every client pulls overrides newer than its last revision
+// every SYNC_POLL_MS (and on tab focus). Conflict policy: last write wins per company.
+// ---------------------------------------------------------------------------
+const SYNC_POLL_MS = 20000;
+const SYNC_PUSH_BATCH = 100;
+const SYNC_REV_KEY = 'hs_sync_rev';
+const SYNC_PENDING_KEY = 'hs_sync_pending';
+
+const syncState = {
+  pending: new Map(),      // id -> record object waiting to be pushed
+  inFlight: new Set(),     // ids currently being pushed
+  timer: null,
+  pollHandle: null,
+  busy: false,
+  available: true,
+  lastError: ''
+};
+
+function syncGetRev() { return parseInt(localStorage.getItem(SYNC_REV_KEY) || '0', 10) || 0; }
+function syncSetRev(n) { localStorage.setItem(SYNC_REV_KEY, String(n)); }
+
+function syncPersistPending() {
+  try { localStorage.setItem(SYNC_PENDING_KEY, JSON.stringify([...syncState.pending.keys()])); } catch (e) {}
+}
+
+function syncQueue(records) {
+  records.forEach(r => { if (r && r.id != null) syncState.pending.set(r.id, r); });
+  syncPersistPending();
+  syncSetStatus();
+  clearTimeout(syncState.timer);
+  syncState.timer = setTimeout(syncFlush, 600);
+}
+
+function syncSetStatus() {
+  let el = document.getElementById('syncStatus');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'syncStatus';
+    el.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:60;font:600 11px/1 system-ui,sans-serif;padding:6px 10px;border-radius:999px;background:#fff;border:1px solid #d2d0ce;box-shadow:0 1px 4px rgba(0,0,0,.12);color:#323130;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  const n = syncState.pending.size;
+  let dot = '#11a387', text = 'Live · shared';
+  if (!syncState.available) { dot = '#8a8886'; text = n > 0 ? `Offline · ${n} unsynced` : 'Local only (server unreachable)'; }
+  else if (n > 0) { dot = '#f59e0b'; text = `Syncing ${n} change${n === 1 ? '' : 's'}…`; }
+  el.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dot};margin-right:6px"></span>${text}`;
+}
+
+async function syncFlush() {
+  if (syncState.busy || syncState.pending.size === 0) return;
+  syncState.busy = true;
+  try {
+    while (syncState.pending.size > 0) {
+      const batch = [...syncState.pending.entries()].slice(0, SYNC_PUSH_BATCH);
+      batch.forEach(([id]) => syncState.inFlight.add(id));
+      const records = batch.map(([, r]) => { const c = { ...r }; delete c._rev; return c; });
+      const res = await fetch('/api/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records })
+      });
+      if (!res.ok) throw new Error(`push failed (${res.status})`);
+      batch.forEach(([id, rec]) => {
+        // Only drop if not re-edited while the request was in flight
+        if (syncState.pending.get(id) === rec) syncState.pending.delete(id);
+        syncState.inFlight.delete(id);
+      });
+      syncPersistPending();
+    }
+    syncState.available = true;
+  } catch (err) {
+    syncState.available = false;
+    syncState.lastError = err.message;
+    syncState.inFlight.clear();
+    console.warn('Sync push error:', err.message);
+  } finally {
+    syncState.busy = false;
+    syncSetStatus();
+  }
+}
+
+async function putManyLocal(records) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    records.forEach(r => store.put(r));
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function syncPull() {
+  let changed = 0;
+  try {
+    let more = true;
+    while (more) {
+      const res = await fetch(`/api/sync?since=${syncGetRev()}`, { headers: { Accept: 'application/json' } });
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok || !ct.includes('application/json')) throw new Error(`pull failed (${res.status})`);
+      const data = await res.json();
+      // Never overwrite a record that has unsent local edits.
+      const incoming = (data.records || []).filter(r => !syncState.pending.has(r.id) && !syncState.inFlight.has(r.id));
+      if (incoming.length) {
+        const idx = new Map(state.allCompanies.map((c, i) => [c.id, i]));
+        const fresh = [];
+        const toStore = [];
+        incoming.forEach(raw => {
+          delete raw._rev;
+          const rec = sanitizeCompanyRecord(raw);
+          toStore.push(rec);
+          if (idx.has(rec.id)) state.allCompanies[idx.get(rec.id)] = rec;
+          else fresh.push(rec);
+        });
+        if (fresh.length) state.allCompanies = fresh.concat(state.allCompanies);
+        await putManyLocal(toStore);
+        changed += incoming.length;
+      }
+      syncSetRev(data.rev);
+      more = !!data.more;
+    }
+    syncState.available = true;
+  } catch (err) {
+    syncState.available = false;
+    syncState.lastError = err.message;
+    console.warn('Sync pull error:', err.message);
+  }
+  if (changed > 0) {
+    populateFilterOptions();
+    applyFilters();
+    updateHeaderStats();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+  syncSetStatus();
+  return changed;
+}
+
+async function syncTick() {
+  if (document.hidden) return;
+  await syncFlush();
+  await syncPull();
+}
+
+function syncStart() {
+  // Re-queue anything that was edited but never reached the server (offline / closed tab).
+  try {
+    const ids = JSON.parse(localStorage.getItem(SYNC_PENDING_KEY) || '[]');
+    if (ids.length) {
+      const byId = new Map(state.allCompanies.map(c => [c.id, c]));
+      ids.forEach(id => { if (byId.has(id)) syncState.pending.set(id, byId.get(id)); });
+    }
+  } catch (e) {}
+  syncSetStatus();
+  syncTick();
+  clearInterval(syncState.pollHandle);
+  syncState.pollHandle = setInterval(syncTick, SYNC_POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncTick(); });
+  window.addEventListener('online', syncTick);
+}
+
+// Collision-safe ids for records created in the browser (several users may add records at once).
+// Strictly increasing within a session; random start offset keeps separate sessions apart.
+let _lastRecordId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+function newRecordId() {
+  _lastRecordId = Math.max(Date.now() * 1000, _lastRecordId + 1);
+  return _lastRecordId;
 }
 
 // Data Source Taxonomy Categorizer
@@ -408,6 +582,7 @@ async function initApp() {
           updateHeaderStats();
         }
       } else if (state.allCompanies && state.allCompanies.length > 0) {
+        syncSetRev(0); // fresh local DB seeded from baseline -> re-pull all shared edits
         setTimeout(() => {
           saveCompaniesToDB(state.allCompanies).catch(console.warn);
         }, 500);
@@ -418,6 +593,7 @@ async function initApp() {
 
     hideLoadingState();
     lucide.createIcons();
+    syncStart();
 
     if (state.aiConfig.cachedModels.length > 0) {
       populateModelDropdown(state.aiConfig.cachedModels, state.aiConfig.model);
@@ -819,7 +995,12 @@ function clearAllFilters() {
 // Safe string escaping for inline JS handlers
 function escapeJs(str) {
   if (!str) return '';
-  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  // Output is placed inside '...' within a double-quoted HTML attribute (onclick="fn('...')").
+  // 1) escape for the JS string, 2) then HTML-escape so entities like &#39; can't decode into a quote.
+  return String(str)
+    .replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // Department / Stakeholder Persona Detection
@@ -1829,7 +2010,7 @@ async function processUniversalImport() {
         const src = String(r['Data Source'] || r['src'] || defaultSource).trim();
 
         return sanitizeCompanyRecord({
-          id: state.allCompanies.length + i + 1,
+          id: newRecordId(),
           name,
           strength,
           size: computeCompanySize({ strength }),
@@ -1853,6 +2034,7 @@ async function processUniversalImport() {
       state.allCompanies.forEach(c => existingNameMap.set(c.name.toLowerCase().trim(), c));
 
       const trulyNew = [];
+      const mergedRecords = new Set();
       let mergedCount = 0;
 
       newRecords.forEach(rec => {
@@ -1872,6 +2054,7 @@ async function processUniversalImport() {
             existing.src = `${existing.src} • ${rec.src}`;
           }
           mergedCount++;
+          mergedRecords.add(existing);
         } else {
           trulyNew.push(rec);
           existingNameMap.set(key, rec);
@@ -1882,8 +2065,9 @@ async function processUniversalImport() {
         await saveCompaniesToDB(trulyNew);
       }
       if (mergedCount > 0) {
-        await saveCompaniesToDB(state.allCompanies);
+        await saveCompaniesToDB([...mergedRecords]);
       }
+      syncQueue([...trulyNew, ...mergedRecords]);
 
       state.allCompanies = await loadAllCompaniesFromDB();
       populateFilterOptions();
@@ -1904,7 +2088,7 @@ async function processUniversalImport() {
       const items = Array.isArray(parsed) ? parsed : [parsed];
 
       const newRecords = items.map((r, i) => sanitizeCompanyRecord({
-        id: state.allCompanies.length + i + 1,
+        id: newRecordId(),
         name: String(r.name || r['Company Name'] || ''),
         strength: String(r.strength || ''),
         size: computeCompanySize(r),
@@ -1922,6 +2106,7 @@ async function processUniversalImport() {
       })).filter(c => c.name.length > 0);
 
       await saveCompaniesToDB(newRecords);
+      syncQueue(newRecords);
       state.allCompanies = await loadAllCompaniesFromDB();
       populateFilterOptions();
       applyFilters();
@@ -1959,7 +2144,7 @@ async function processUniversalImport() {
           const rows = Array.isArray(parsed) ? parsed : (parsed.companies || []);
 
           const newRecords = rows.map((r, i) => sanitizeCompanyRecord({
-            id: state.allCompanies.length + i + 1,
+            id: newRecordId(),
             name: String(r.name || 'Extracted Lead'),
             strength: String(r.strength || ''),
             size: computeCompanySize(r),
@@ -1977,6 +2162,7 @@ async function processUniversalImport() {
           })).filter(c => c.name.length > 0);
 
           await saveCompaniesToDB(newRecords);
+          syncQueue(newRecords);
           state.allCompanies = await loadAllCompaniesFromDB();
           populateFilterOptions();
           applyFilters();
@@ -2051,7 +2237,7 @@ async function saveNewRecord() {
   }
 
   const newComp = {
-    id: Date.now(),
+    id: newRecordId(),
     name,
     date,
     month,
@@ -2151,15 +2337,6 @@ async function saveCompanyModal() {
   comp.remarks = document.getElementById('editRemarks').value.trim();
 
   await updateCompanyInDB(comp);
-
-  // Sync to master server in real-time
-  try {
-    fetch('/api/save_company', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(comp)
-    }).catch(() => {});
-  } catch(e){}
 
   closeCompanyModal();
   populateFilterOptions();
@@ -3281,9 +3458,12 @@ function triggerModelDiscovery() {
 
 // Reset Database action in Settings
 async function resetDatabaseToDefault() {
-  if (!confirm('Are you sure you want to restore the database to the original 27,003 records? Custom edits will be reset.')) {
+  if (!confirm('Re-download this device\'s copy: the local database is rebuilt from the master 27,003 records and then all shared team edits are re-applied. Unsynced local edits on this device will be lost. Continue?')) {
     return;
   }
+  syncState.pending.clear();
+  syncPersistPending();
+  syncSetRev(0);
   renderLoadingState('Resetting database to default...');
   closeSettingsModal();
 
@@ -3293,8 +3473,9 @@ async function resetDatabaseToDefault() {
     populateFilterOptions();
     applyFilters();
     updateHeaderStats();
+    await syncPull();
     hideLoadingState();
-    showToast('Database reset to master 27,003 records');
+    showToast('Local copy rebuilt from master data + shared team edits');
   } else {
     hideLoadingState();
     showToast('Master data not available', 'error');
