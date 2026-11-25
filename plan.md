@@ -47,7 +47,7 @@ Browser ──► /login (emailed 8-digit code via SendGrid → server-side sess
    - **Deploy command:** `npm run deploy` (applies D1 migrations, then `wrangler deploy`)
    - Enable *non-production branch builds* if you want preview deploys for PRs (previews share the same D1 database unless you add a separate preview DB, so treat them as live).
 4. **Sign-in (emailed 8-digit one-time code via SendGrid)** — no Cloudflare Access needed:
-   - Allowed users: `ALLOWED_EMAIL_DOMAINS` (default `bharatsure.com`) and optional `ALLOWED_EMAILS` in `wrangler.jsonc` `vars`. The list is re-checked on every request, so removing someone locks them out immediately.
+   - Allowed users: `ALLOWED_EMAIL_DOMAINS` (currently `bharatsure.com,healthysure.in`) and optional `ALLOWED_EMAILS` in `wrangler.jsonc` `vars`. The list is re-checked on every request, so removing someone locks them out immediately.
    - Sender: `EMAIL_FROM` (`noreply@product.bharatsure.com`) must be a verified Single Sender or authenticated domain in SendGrid.
 5. **Set two secrets** (Worker → Settings → Variables and Secrets → Add → type *Secret*; they persist across deploys and never touch Git):
    - `SESSION_SECRET` — random string, 32+ characters (keys the hash of sign-in codes).

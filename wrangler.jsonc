@@ -23,7 +23,7 @@
   //   SESSION_SECRET   random string, 32+ characters (signs login cookies)
   //   SENDGRID_API_KEY SendGrid API key with "Mail Send" permission
   "vars": {
-    "ALLOWED_EMAIL_DOMAINS": "bharatsure.com",
+    "ALLOWED_EMAIL_DOMAINS": "bharatsure.com,healthysure.in",
     "ALLOWED_EMAILS": "",
     "EMAIL_FROM": "noreply@product.bharatsure.com",
     "EMAIL_FROM_NAME": "HealthySure BD"
