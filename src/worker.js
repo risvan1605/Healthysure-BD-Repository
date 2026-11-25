@@ -5,6 +5,8 @@
 //   POST /api/feedback           -> founder review notes
 //   POST /api/prospeo            -> proxy to Prospeo (avoids browser CORS)
 
+import { AuthError, LOGIN_HTML, clearSessionCookie, getSessionUser, requestCode, verifyCode } from './auth.js';
+
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 200;
 const SYNC_PAGE_SIZE = 2000;
@@ -32,61 +34,6 @@ class HttpError extends Error {
     super(message);
     this.status = status;
   }
-}
-
-// ---- Cloudflare Access JWT verification (defence in depth; enforced when ACCESS_AUD is set) ----
-const b64urlToBytes = (s) => {
-  s = s.replace(/-/g, '+').replace(/_/g, '/');
-  s += '='.repeat((4 - (s.length % 4)) % 4);
-  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-};
-
-let jwksCache = { at: 0, keys: null };
-async function getJwks(teamDomain) {
-  if (jwksCache.keys && Date.now() - jwksCache.at < 10 * 60 * 1000) return jwksCache.keys;
-  const res = await fetch(`https://${teamDomain}/cdn-cgi/access/certs`);
-  if (!res.ok) throw new HttpError(500, 'Unable to fetch Access signing keys');
-  const { keys } = await res.json();
-  jwksCache = { at: Date.now(), keys };
-  return keys;
-}
-
-export async function verifyAccessJwt(token, teamDomain, aud, jwks) {
-  try {
-    return await verifyAccessJwtInner(token, teamDomain, aud, jwks);
-  } catch (err) {
-    if (err instanceof HttpError) throw err;
-    throw new HttpError(401, 'Invalid Access token'); // malformed token / bad base64 / bad JSON
-  }
-}
-
-async function verifyAccessJwtInner(token, teamDomain, aud, jwks) {
-  const parts = (token || '').split('.');
-  if (parts.length !== 3) throw new HttpError(401, 'Missing or malformed Access token');
-  const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));
-  const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
-  const jwk = (jwks || await getJwks(teamDomain)).find((k) => k.kid === header.kid);
-  if (!jwk || header.alg !== 'RS256') throw new HttpError(401, 'Unknown Access signing key');
-  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-  const ok = await crypto.subtle.verify(
-    'RSASSA-PKCS1-v1_5', key, b64urlToBytes(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
-  if (!ok) throw new HttpError(401, 'Invalid Access token signature');
-  const now = Math.floor(Date.now() / 1000);
-  const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!auds.includes(aud)) throw new HttpError(401, 'Access token audience mismatch');
-  if (payload.iss !== `https://${teamDomain}`) throw new HttpError(401, 'Access token issuer mismatch');
-  if (!payload.exp || payload.exp < now) throw new HttpError(401, 'Access token expired');
-  return payload.email || payload.sub || 'unknown';
-}
-
-// Fail closed: the Access JWT is always verified. The only exception is local development,
-// enabled explicitly with ALLOW_INSECURE_DEV=true (in .dev.vars, never in production vars).
-// The Cf-Access-Authenticated-User-Email header is never trusted on its own (it is spoofable
-// if the request reaches the Worker without passing through Access).
-async function identify(request, env) {
-  if (env.ALLOW_INSECURE_DEV === 'true') return 'local';
-  if (!env.ACCESS_AUD || !env.ACCESS_TEAM_DOMAIN) throw new HttpError(500, 'Auth not configured');
-  return verifyAccessJwt(request.headers.get('Cf-Access-Jwt-Assertion'), env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
 }
 
 // ---- Record schema (allowlist) ----
@@ -211,26 +158,74 @@ async function handleProspeo(request) {
   });
 }
 
+const securityHeaders = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'same-origin',
+  'x-frame-options': 'DENY',
+};
+
+const withHeaders = (res, extra = {}) => {
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries({ ...securityHeaders, ...extra })) out.headers.set(k, v);
+  return out;
+};
+
+const wantsHtml = (request) =>
+  request.headers.get('Sec-Fetch-Dest') === 'document' || (request.headers.get('Accept') || '').includes('text/html');
+
+// Cross-site POSTs are refused (the session cookie is SameSite=Lax as well).
+function checkOrigin(request, url) {
+  if (request.method === 'GET' || request.method === 'HEAD') return;
+  const origin = request.headers.get('Origin');
+  if (origin && new URL(origin).host !== url.host) throw new HttpError(403, 'Cross-origin request refused');
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     try {
-      // Every request (static files included, e.g. the 27k-company dataset) must carry a valid Access JWT.
-      const user = await identify(request, env);
-      if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+      checkOrigin(request, url);
+
+      // ---- Public: login page + auth endpoints ----
+      if (url.pathname === '/login' && request.method === 'GET') {
+        return withHeaders(new Response(LOGIN_HTML, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }));
+      }
+      if (url.pathname === '/auth/request' && request.method === 'POST') {
+        return withHeaders(json(await requestCode(request, env, await readJson(request))));
+      }
+      if (url.pathname === '/auth/verify' && request.method === 'POST') {
+        const { email, cookie } = await verifyCode(request, env, await readJson(request));
+        return withHeaders(json({ ok: true, email }), { 'set-cookie': cookie });
+      }
+      if (url.pathname === '/auth/logout' && request.method === 'POST') {
+        return withHeaders(json({ ok: true }), { 'set-cookie': clearSessionCookie(url) });
+      }
+
+      // ---- Everything else needs a session (pages, the 27k-company data file, the API) ----
+      const user = await getSessionUser(request, env);
+      if (!user) {
+        if (!url.pathname.startsWith('/api/') && wantsHtml(request) && request.method === 'GET') {
+          return withHeaders(new Response(null, { status: 302, headers: { location: '/login', 'cache-control': 'no-store' } }));
+        }
+        return withHeaders(json({ error: 'Not signed in' }, 401));
+      }
+      if (!url.pathname.startsWith('/api/')) {
+        return withHeaders(await env.ASSETS.fetch(request), { 'cache-control': 'private, no-cache' });
+      }
+
       const route = `${request.method} ${url.pathname}`;
       switch (route) {
-        case 'GET /api/sync': return await handleSync(request, env);
-        case 'POST /api/companies': return await handlePush(request, env, user);
-        case 'POST /api/feedback': return await handleFeedback(request, env, user);
-        case 'POST /api/prospeo': return await handleProspeo(request);
-        case 'GET /api/me': return json({ user });
-        default: return json({ error: 'Not found' }, 404);
+        case 'GET /api/sync': return withHeaders(await handleSync(request, env));
+        case 'POST /api/companies': return withHeaders(await handlePush(request, env, user));
+        case 'POST /api/feedback': return withHeaders(await handleFeedback(request, env, user));
+        case 'POST /api/prospeo': return withHeaders(await handleProspeo(request));
+        case 'GET /api/me': return withHeaders(json({ user }));
+        default: return withHeaders(json({ error: 'Not found' }, 404));
       }
     } catch (err) {
-      if (err instanceof HttpError) return json({ error: err.message }, err.status);
+      if (err instanceof HttpError || err instanceof AuthError) return withHeaders(json({ error: err.message }, err.status));
       console.error(err);
-      return json({ error: 'Internal error' }, 500);
+      return withHeaders(json({ error: 'Internal error' }, 500));
     }
   },
 };

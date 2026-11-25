@@ -307,7 +307,14 @@ function syncSetStatus() {
   let dot = '#11a387', text = 'Live · shared';
   if (!syncState.available) { dot = '#8a8886'; text = n > 0 ? `Offline · ${n} unsynced` : 'Local only (server unreachable)'; }
   else if (n > 0) { dot = '#f59e0b'; text = `Syncing ${n} change${n === 1 ? '' : 's'}…`; }
-  el.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dot};margin-right:6px"></span>${text}`;
+  el.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dot};margin-right:6px"></span>${text}` +
+    ` <a href="#" id="signOutLink" style="pointer-events:auto;margin-left:10px;color:#0e8770;text-decoration:underline;font-weight:500">Sign out</a>`;
+  const so = document.getElementById('signOutLink');
+  if (so) so.onclick = async (e) => {
+    e.preventDefault();
+    try { await fetch('/auth/logout', { method: 'POST' }); } catch (err) {}
+    location.href = '/login';
+  };
 }
 
 async function syncFlush() {
@@ -323,6 +330,7 @@ async function syncFlush() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ records })
       });
+      if (res.status === 401) { location.href = '/login'; throw new Error('session expired'); }
       if (!res.ok) throw new Error(`push failed (${res.status})`);
       batch.forEach(([id, rec]) => {
         // Only drop if not re-edited while the request was in flight
@@ -360,6 +368,7 @@ async function syncPull() {
     let more = true;
     while (more) {
       const res = await fetch(`/api/sync?since=${syncGetRev()}`, { headers: { Accept: 'application/json' } });
+      if (res.status === 401 || res.redirected) { location.href = '/login'; throw new Error('session expired'); }
       const ct = res.headers.get('content-type') || '';
       if (!res.ok || !ct.includes('application/json')) throw new Error(`pull failed (${res.status})`);
       const data = await res.json();

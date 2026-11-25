@@ -94,7 +94,8 @@ Click **"AI Copilot"** in the top-right corner to open the sliding assistant dra
 
 ```text
 public/                 # Served app: index.html, app.js, app.css, companies_data.js (27k baseline)
-src/worker.js           # Cloudflare Worker: /api/sync, /api/companies, /api/feedback, /api/prospeo
+src/worker.js           # Cloudflare Worker: routing + /api/sync, /api/companies, /api/feedback, /api/prospeo
+src/auth.js             # Emailed one-time-code login (SendGrid) + session cookies
 migrations/             # D1 schema migrations
 wrangler.jsonc          # Cloudflare config
 companies.json / .csv   # Data exports (not deployed)

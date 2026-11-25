@@ -18,11 +18,14 @@
       "migrations_dir": "migrations"
     }
   ],
-  // REQUIRED in production: values from your Cloudflare Access application. The Worker fails
-  // closed (HTTP 500 "Auth not configured") until both are set, and then rejects any request
-  // (pages, data file, API) without a valid Access JWT.
+  // Sign-in: emailed one-time code via SendGrid. Secrets are NOT stored here; set them in
+  // Cloudflare (Worker -> Settings -> Variables and Secrets -> Add, type "Secret"):
+  //   SESSION_SECRET   random string, 32+ characters (signs login cookies)
+  //   SENDGRID_API_KEY SendGrid API key with "Mail Send" permission
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "bharatsure-qa-studio-pages.cloudflareaccess.com",
-    "ACCESS_AUD": "0f9af640ca02057d286ebfb34bdd0a4558f3c419477fb96d20f931161b9daa7a"
+    "ALLOWED_EMAIL_DOMAINS": "bharatsure.com",
+    "ALLOWED_EMAILS": "",
+    "EMAIL_FROM": "noreply@product.bharatsure.com",
+    "EMAIL_FROM_NAME": "HealthySure BD"
   }
 }
