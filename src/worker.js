@@ -5,7 +5,7 @@
 //   POST /api/feedback           -> founder review notes
 //   POST /api/prospeo            -> proxy to Prospeo (avoids browser CORS)
 
-import { AuthError, LOGIN_HTML, clearSessionCookie, getSessionUser, requestCode, verifyCode } from './auth.js';
+import { AuthError, LOGIN_HTML, clearSessionCookie, destroySession, getSessionUser, requestCode, verifyCode } from './auth.js';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS_PER_PUSH = 200;
@@ -198,6 +198,7 @@ export default {
         return withHeaders(json({ ok: true, email }), { 'set-cookie': cookie });
       }
       if (url.pathname === '/auth/logout' && request.method === 'POST') {
+        await destroySession(request, env); // server-side: the cookie is dead even if someone copied it
         return withHeaders(json({ ok: true }), { 'set-cookie': clearSessionCookie(url) });
       }
 

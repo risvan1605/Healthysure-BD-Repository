@@ -1,6 +1,6 @@
 // Emailed one-time-code login (SendGrid) with signed session cookies.
 //
-//   POST /auth/request {email}        -> emails a 6-digit code (always answers the same, so
+//   POST /auth/request {email}        -> emails an 8-digit code (always answers the same, so
 //                                        callers cannot learn which addresses are allowed)
 //   POST /auth/verify  {email, code}  -> sets the session cookie
 //   POST /auth/logout                 -> clears it
@@ -12,8 +12,11 @@
 export const OTP_TTL_SECONDS = 10 * 60;
 export const OTP_MAX_ATTEMPTS = 5;
 export const SESSION_TTL_SECONDS = 12 * 60 * 60;
-const REQUESTS_PER_EMAIL = 5;       // per 15 minutes
-const REQUESTS_PER_IP = 20;         // per 15 minutes
+const CODE_DIGITS = 8;
+const REQUESTS_PER_EMAIL_AND_IP = 3;  // per 15 min: one visitor cannot lock others out of an address
+const REQUESTS_PER_EMAIL = 10;        // per 15 min, across all IPs: bounds mail flooding and guess volume
+const REQUESTS_PER_IP = 20;           // per 15 min
+const FAILED_VERIFY_PER_IP = 20;      // per 15 min
 const RATE_WINDOW_SECONDS = 15 * 60;
 
 export class AuthError extends Error {
@@ -60,25 +63,10 @@ export function isAllowedEmail(email, env) {
   return list.includes(email) || domains.includes(email.split('@')[1]);
 }
 
-// ---- Session cookie: base64url(payload).base64url(HMAC) ----
-export async function createSessionToken(secret, email, ttl = SESSION_TTL_SECONDS) {
-  const payload = toB64url(enc.encode(JSON.stringify({ e: email, exp: nowSec() + ttl })));
-  const sig = await crypto.subtle.sign('HMAC', await hmacKey(secret, ['sign']), enc.encode(payload));
-  return `${payload}.${toB64url(sig)}`;
-}
-
-export async function readSessionToken(secret, token) {
-  try {
-    const [payload, sig] = String(token || '').split('.');
-    if (!payload || !sig) return null;
-    const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret, ['verify']), fromB64url(sig), enc.encode(payload));
-    if (!ok) return null;
-    const data = JSON.parse(new TextDecoder().decode(fromB64url(payload)));
-    if (!data.e || !data.exp || data.exp < nowSec()) return null;
-    return data.e;
-  } catch {
-    return null;
-  }
+// ---- Sessions (server-side; the cookie holds only a random token) ----
+async function sha256Hex(text) {
+  const d = await crypto.subtle.digest('SHA-256', enc.encode(text));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 const isSecure = (url) => url.protocol === 'https:';
@@ -93,24 +81,42 @@ function readCookie(request, name) {
   return null;
 }
 
-export async function getSessionUser(request, env) {
-  if (env.ALLOW_INSECURE_DEV === 'true') return 'local';
-  const secret = requireSecret(env);
-  const user = await readSessionToken(secret, readCookie(request, cookieName(new URL(request.url))));
-  // The allowlist is re-checked on every request, so removing someone takes effect immediately.
-  return user && isAllowedEmail(user, env) ? user : null;
-}
-
 function sessionCookie(url, value, maxAge) {
   return `${cookieName(url)}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${isSecure(url) ? '; Secure' : ''}`;
+}
+
+async function createSession(env, url, email) {
+  const token = toB64url(crypto.getRandomValues(new Uint8Array(32)));
+  const now = nowSec();
+  await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+  await env.DB.prepare('INSERT INTO sessions (id_hash, email, expires_at, created_at) VALUES (?1, ?2, ?3, ?4)')
+    .bind(await sha256Hex(token), email, now + SESSION_TTL_SECONDS, now).run();
+  return sessionCookie(url, token, SESSION_TTL_SECONDS);
+}
+
+export async function getSessionUser(request, env) {
+  if (env.ALLOW_INSECURE_DEV === 'true') return 'local';
+  requireSecret(env);
+  const token = readCookie(request, cookieName(new URL(request.url)));
+  if (!token || token.length > 128) return null;
+  const row = await env.DB.prepare('SELECT email FROM sessions WHERE id_hash = ? AND expires_at > ?')
+    .bind(await sha256Hex(token), nowSec()).first();
+  // The allowlist is re-checked on every request, so removing someone takes effect immediately.
+  return row && isAllowedEmail(row.email, env) ? row.email : null;
+}
+
+export async function destroySession(request, env) {
+  const token = readCookie(request, cookieName(new URL(request.url)));
+  if (token && token.length <= 128) await env.DB.prepare('DELETE FROM sessions WHERE id_hash = ?').bind(await sha256Hex(token)).run();
 }
 
 // ---- One-time codes ----
 function randomCode() {
   const buf = new Uint32Array(1);
-  const limit = Math.floor(0x100000000 / 1000000) * 1000000; // rejection sampling: no modulo bias
+  const space = 10 ** CODE_DIGITS;
+  const limit = Math.floor(0x100000000 / space) * space; // rejection sampling: no modulo bias
   do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
-  return String(buf[0] % 1000000).padStart(6, '0');
+  return String(buf[0] % space).padStart(CODE_DIGITS, '0');
 }
 
 async function sendCodeEmail(env, to, code) {
@@ -148,9 +154,15 @@ export async function requestCode(request, env, body) {
   await env.DB.prepare('DELETE FROM otp_codes WHERE created_at < ?').bind(now - 24 * 3600).run();
 
   const since = now - RATE_WINDOW_SECONDS;
-  const byEmail = await env.DB.prepare('SELECT COUNT(*) c FROM otp_codes WHERE email = ? AND created_at > ?').bind(email, since).first();
-  const byIp = await env.DB.prepare('SELECT COUNT(*) c FROM otp_codes WHERE ip = ? AND created_at > ?').bind(ip, since).first();
-  if (byEmail.c >= REQUESTS_PER_EMAIL || byIp.c >= REQUESTS_PER_IP) throw new AuthError(429, 'Too many requests. Try again in a few minutes.');
+  const count = async (sql, ...args) => (await env.DB.prepare(sql).bind(...args).first()).c;
+  const [byPair, byEmail, byIp] = await Promise.all([
+    count('SELECT COUNT(*) c FROM otp_codes WHERE email = ? AND ip = ? AND created_at > ?', email, ip, since),
+    count('SELECT COUNT(*) c FROM otp_codes WHERE email = ? AND created_at > ?', email, since),
+    count('SELECT COUNT(*) c FROM otp_codes WHERE ip = ? AND created_at > ?', ip, since),
+  ]);
+  if (byPair >= REQUESTS_PER_EMAIL_AND_IP || byEmail >= REQUESTS_PER_EMAIL || byIp >= REQUESTS_PER_IP) {
+    throw new AuthError(429, 'Too many requests. Try again in a few minutes.');
+  }
 
   // Same response whether or not the address is allowed (no account enumeration).
   if (isAllowedEmail(email, env)) {
@@ -167,11 +179,29 @@ export async function requestCode(request, env, body) {
 }
 
 export async function verifyCode(request, env, body) {
+  requireSecret(env);
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const now = nowSec();
+  const failures = (await env.DB.prepare('SELECT COUNT(*) c FROM auth_failures WHERE ip = ? AND created_at > ?')
+    .bind(ip, now - RATE_WINDOW_SECONDS).first()).c;
+  if (failures >= FAILED_VERIFY_PER_IP) throw new AuthError(429, 'Too many attempts. Try again in a few minutes.');
+  try {
+    return await verifyCodeInner(request, env, body);
+  } catch (err) {
+    if (err instanceof AuthError && err.status === 401) {
+      await env.DB.prepare('INSERT INTO auth_failures (ip, created_at) VALUES (?1, ?2)').bind(ip, now).run();
+      await env.DB.prepare('DELETE FROM auth_failures WHERE created_at < ?').bind(now - 24 * 3600).run();
+    }
+    throw err;
+  }
+}
+
+async function verifyCodeInner(request, env, body) {
   const secret = requireSecret(env);
   const email = normalizeEmail(body && body.email);
   const code = String((body && body.code) || '').trim();
   const fail = () => new AuthError(401, 'Invalid or expired code');
-  if (!email || !/^\d{6}$/.test(code) || !isAllowedEmail(email, env)) throw fail();
+  if (!email || !new RegExp(`^\\d{${CODE_DIGITS}}$`).test(code) || !isAllowedEmail(email, env)) throw fail();
 
   const latest = await env.DB.prepare('SELECT id FROM otp_codes WHERE email = ? AND code_hash != ? ORDER BY id DESC LIMIT 1').bind(email, '-').first();
   if (!latest) throw fail();
@@ -185,8 +215,7 @@ export async function verifyCode(request, env, body) {
   if (!ok) throw fail();
 
   await env.DB.prepare('DELETE FROM otp_codes WHERE email = ?').bind(email).run(); // single use
-  const token = await createSessionToken(secret, email);
-  return { email, cookie: sessionCookie(new URL(request.url), token, SESSION_TTL_SECONDS) };
+  return { email, cookie: await createSession(env, new URL(request.url), email) };
 }
 
 function fromHex(hex) {
@@ -207,19 +236,19 @@ export const LOGIN_HTML = `<!doctype html>
 h1{font-size:18px;margin:0 0 4px}p{margin:0 0 16px;color:#605e5c;font-size:13px;line-height:1.45}
 label{display:block;font-size:12px;font-weight:600;margin-bottom:6px}
 input{width:100%;padding:10px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:15px}input:focus{outline:2px solid #11a387;border-color:#11a387}
-#code{letter-spacing:8px;font-size:22px;text-align:center;font-weight:600}
+#code{letter-spacing:6px;font-size:20px;text-align:center;font-weight:600}
 button{width:100%;margin-top:14px;padding:10px;border:0;border-radius:4px;background:#11a387;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
 button:disabled{opacity:.6;cursor:default}.link{background:none;color:#0e8770;margin-top:8px;font-weight:500;font-size:12px}
 #msg{min-height:18px;margin-top:12px;font-size:12px;color:#a80000}#msg.ok{color:#0e8770}.hidden{display:none}
 </style></head><body><main class="card">
-<h1>HealthySure BD</h1><p id="sub">Sign in with your work email. We'll send you a 6-digit code.</p>
+<h1>HealthySure BD</h1><p id="sub">Sign in with your work email. We'll send you a 8-digit code.</p>
 <form id="f1"><label for="email">Work email</label><input id="email" type="email" autocomplete="email" required autofocus placeholder="you@bharatsure.com"><button id="b1">Send code</button></form>
-<form id="f2" class="hidden"><label for="code">6-digit code</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" required><button id="b2">Verify &amp; sign in</button><button type="button" class="link" id="back">Use a different email</button></form>
+<form id="f2" class="hidden"><label for="code">8-digit code</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" pattern="\\d{8}" required><button id="b2">Verify &amp; sign in</button><button type="button" class="link" id="back">Use a different email</button></form>
 <div id="msg" role="status"></div></main>
 <script>
 const $=i=>document.getElementById(i),msg=(t,ok)=>{$('msg').textContent=t||'';$('msg').className=ok?'ok':''};
 async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||'Something went wrong');return d}
 $('f1').onsubmit=async e=>{e.preventDefault();$('b1').disabled=true;msg('');try{await post('/auth/request',{email:$('email').value});$('f1').classList.add('hidden');$('f2').classList.remove('hidden');$('sub').textContent='Enter the code sent to '+$('email').value.trim()+'.';msg('Code sent if this address is allowed. It expires in 10 minutes.',true);$('code').focus()}catch(x){msg(x.message)}$('b1').disabled=false};
 $('f2').onsubmit=async e=>{e.preventDefault();$('b2').disabled=true;msg('');try{await post('/auth/verify',{email:$('email').value,code:$('code').value});location.replace('/')}catch(x){msg(x.message);$('b2').disabled=false}};
-$('back').onclick=()=>{$('f2').classList.add('hidden');$('f1').classList.remove('hidden');$('sub').textContent="Sign in with your work email. We'll send you a 6-digit code.";$('code').value='';msg('')};
+$('back').onclick=()=>{$('f2').classList.add('hidden');$('f1').classList.remove('hidden');$('sub').textContent="Sign in with your work email. We'll send you a 8-digit code.";$('code').value='';msg('')};
 </script></body></html>`;

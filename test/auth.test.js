@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeEmail, isAllowedEmail, createSessionToken, readSessionToken } from '../src/auth.js';
-
-const SECRET = 'x'.repeat(40);
+import { normalizeEmail, isAllowedEmail } from '../src/auth.js';
 
 test('normalizeEmail accepts normal addresses and rejects junk', () => {
   assert.equal(normalizeEmail('  Risvan@BharatSure.com '), 'risvan@bharatsure.com');
@@ -23,14 +21,3 @@ test('allowlist: exact domain match only, or explicit address', () => {
   assert.ok(!isAllowedEmail('a@bharatsure.com', {}));
 });
 
-test('session token round-trips, and rejects tampering, wrong key and expiry', async () => {
-  const t = await createSessionToken(SECRET, 'a@bharatsure.com');
-  assert.equal(await readSessionToken(SECRET, t), 'a@bharatsure.com');
-  assert.equal(await readSessionToken('y'.repeat(40), t), null);
-  const [payload, sig] = t.split('.');
-  const forged = Buffer.from(JSON.stringify({ e: 'boss@bharatsure.com', exp: 9999999999 })).toString('base64url');
-  assert.equal(await readSessionToken(SECRET, `${forged}.${sig}`), null);
-  assert.equal(await readSessionToken(SECRET, `${payload}.`), null);
-  assert.equal(await readSessionToken(SECRET, 'garbage'), null);
-  assert.equal(await readSessionToken(SECRET, await createSessionToken(SECRET, 'a@bharatsure.com', -10)), null);
-});
