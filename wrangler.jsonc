@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "healthysure-bd",
   "main": "src/worker.js",
+  "account_id": "5872d5401e2adbc0f07cae29fe081a6f",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./public",
@@ -13,8 +14,7 @@
     {
       "binding": "DB",
       "database_name": "healthysure-bd",
-      // Replace with the id printed by: npx wrangler d1 create healthysure-bd
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "de6bff46-4585-4833-9953-201f58172c74",
       "migrations_dir": "migrations"
     }
   ],
