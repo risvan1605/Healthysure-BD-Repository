@@ -96,6 +96,14 @@ Not deployed (stay in the repo root): `companies.json`, `companies.csv`, screens
 9. **Residual sign-in risk:** access is granted to every address on an allowed domain, so a determined attacker spreading requests over many IPs can still make roughly 50 guesses per 15 minutes at one address (1 in 2 million per day with 8-digit codes) and can annoy a user with code emails. For a smaller team, list people in `ALLOWED_EMAILS` instead of a whole domain.
 10. **Cost:** expected within free tiers (D1 reads per poll are tiny since only rows with `rev > cursor` are read). Revisit past 50 Access users.
 
+## 6b. Break-glass: admin password rotation when throttled or forgotten
+Throttling only ever delays someone for up to 15 minutes, and the person who owns the Cloudflare account can always reset the admin password out-of-band (no in-app login needed):
+1. Set a new `ADMIN_PASSWORD` secret (dashboard → Worker → Variables and Secrets, or `npx wrangler secret put ADMIN_PASSWORD`).
+2. Delete the stored hash so the secret becomes the password again:
+   `npx wrangler d1 execute DB --remote --command "DELETE FROM admin_credentials"`
+3. Optionally clear the throttle immediately: `npx wrangler d1 execute DB --remote --command "DELETE FROM admin_audit WHERE ok = 0"` (this erases failed-attempt history; export the table first if you need it).
+Everyone who can do this already holds the account's Cloudflare credentials, which is the real root of trust.
+
 ## 7. Rollback
 - Dashboard → Worker → Deployments → roll back to a previous version, or `npx wrangler rollback`.
 - D1: `npx wrangler d1 time-travel restore healthysure-bd --timestamp <iso>`; periodic export: `npx wrangler d1 export healthysure-bd --remote --output backup.sql`.
