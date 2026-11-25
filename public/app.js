@@ -168,6 +168,25 @@ function sanitizeCompanyRecord(item) {
   item.dataSourceCategory = String(item.dataSourceCategory || item.src || 'Other').trim();
   item.status = String(item.status || 'new').trim();
   if (!item.size) item.size = computeCompanySize(item);
+  // spocs / aiIntelligence can arrive from other users via sync: rebuild them as plain string data.
+  if (item.spocs !== undefined) {
+    const t = (v) => (v == null || typeof v === 'object' ? '' : String(v));
+    item.spocs = (Array.isArray(item.spocs) ? item.spocs : [])
+      .filter(x => x && typeof x === 'object')
+      .map((x, i) => ({
+        id: Number.isFinite(Number(x.id)) ? Number(x.id) : i + 1,
+        name: t(x.name), title: t(x.title), department: t(x.department), email: t(x.email),
+        phone: t(x.phone), authority: t(x.authority), isPrimary: x.isPrimary === true
+      }));
+  }
+  if (item.aiIntelligence && typeof item.aiIntelligence === 'object') {
+    const intel = {};
+    Object.keys(item.aiIntelligence).forEach(k => {
+      const v = item.aiIntelligence[k];
+      if (typeof v === 'string' || typeof v === 'number') intel[k] = String(v);
+    });
+    item.aiIntelligence = intel;
+  }
   return item;
 }
 
@@ -345,7 +364,8 @@ async function syncPull() {
       if (!res.ok || !ct.includes('application/json')) throw new Error(`pull failed (${res.status})`);
       const data = await res.json();
       // Never overwrite a record that has unsent local edits.
-      const incoming = (data.records || []).filter(r => !syncState.pending.has(r.id) && !syncState.inFlight.has(r.id));
+      const incoming = (data.records || []).filter(r =>
+        r && Number.isSafeInteger(r.id) && r.id > 0 && !syncState.pending.has(r.id) && !syncState.inFlight.has(r.id));
       if (incoming.length) {
         const idx = new Map(state.allCompanies.map((c, i) => [c.id, i]));
         const fresh = [];
@@ -2410,7 +2430,7 @@ function renderEnrichmentResults(comp) {
           <span class="font-bold text-[#201f1e]">${escapeHtml(s.name)}</span>
           <span class="fluent-badge text-[10px] py-0.5 px-1.5 bg-[#f3f0fc] text-[#5c2d91]">${escapeHtml(s.department || s.authority || 'SPOC')}</span>
         </div>
-        <button onclick="setAsLeadContact('${escapeHtml(s.name)}', '${escapeHtml(s.title)}', '${escapeHtml(s.email)}', '${escapeHtml(s.phone)}')" class="fluent-btn fluent-btn-subtle h-6 px-2 text-[11px] text-[#11a387] font-semibold border border-[#b2e3da] hover:bg-[#e7f6f3]">
+        <button onclick="setAsLeadContact('${escapeJs(s.name)}', '${escapeJs(s.title)}', '${escapeJs(s.email)}', '${escapeJs(s.phone)}')" class="fluent-btn fluent-btn-subtle h-6 px-2 text-[11px] text-[#11a387] font-semibold border border-[#b2e3da] hover:bg-[#e7f6f3]">
           Use Contact
         </button>
       </div>
@@ -3497,8 +3517,7 @@ function exportDatabaseBackupJson() {
 
 // Utility Helpers
 function escapeHtml(str) {
-  if (typeof str !== 'string') return str == null ? '' : String(str);
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function showToast(message) {

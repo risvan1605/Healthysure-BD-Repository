@@ -80,6 +80,50 @@ async function identify(request, env) {
   return verifyAccessJwt(request.headers.get('Cf-Access-Jwt-Assertion'), env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
 }
 
+// ---- Record schema (allowlist) ----
+// Only known keys survive, values are coerced to capped primitives, spocs/aiIntelligence are
+// rebuilt from scratch. Anything else a client sends is dropped, so one user cannot plant
+// unexpected structures in data that every other user's browser renders.
+const STRING_FIELDS = {
+  name: 300, strength: 40, size: 40, location: 300, bd: 100, src: 500, dataSourceCategory: 200,
+  dataSource: 200, contact: 300, designation: 300, email: 300, phone: 100, remarks: 5000,
+  month: 40, date: 40, status: 40, insurer: 300, broker: 300, premium: 100, website: 300,
+};
+const SPOC_STRING_FIELDS = { name: 300, title: 300, department: 300, email: 300, phone: 100, authority: 300 };
+const MAX_SPOCS = 20;
+const MAX_INTEL_KEYS = 30;
+
+const str = (v, max) => (v == null || typeof v === 'object' ? '' : String(v)).slice(0, max);
+
+export function normalizeRecord(rec) {
+  if (!rec || typeof rec !== 'object' || Array.isArray(rec)) throw new HttpError(400, 'Record must be an object');
+  const id = Number(rec.id);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new HttpError(400, 'Every record needs a positive integer id');
+  const out = { id };
+  for (const [k, max] of Object.entries(STRING_FIELDS)) {
+    if (rec[k] !== undefined) out[k] = str(rec[k], max);
+  }
+  if (!out.name || !out.name.trim()) throw new HttpError(400, `Record ${id} needs a name`);
+  if (rec.aiEnriched !== undefined) out.aiEnriched = rec.aiEnriched === true;
+  if (rec.spocs !== undefined) {
+    if (!Array.isArray(rec.spocs)) throw new HttpError(400, `Record ${id}: spocs must be an array`);
+    out.spocs = rec.spocs.slice(0, MAX_SPOCS).filter((x) => x && typeof x === 'object').map((x, i) => {
+      const spoc = { id: Number.isSafeInteger(Number(x.id)) ? Number(x.id) : i + 1, isPrimary: x.isPrimary === true };
+      for (const [k, max] of Object.entries(SPOC_STRING_FIELDS)) spoc[k] = str(x[k], max);
+      return spoc;
+    });
+  }
+  if (rec.aiIntelligence && typeof rec.aiIntelligence === 'object' && !Array.isArray(rec.aiIntelligence)) {
+    // Flat map of short strings only (e.g. healthysure_renewal_hook).
+    const intel = {};
+    for (const [k, v] of Object.entries(rec.aiIntelligence).slice(0, MAX_INTEL_KEYS)) {
+      if (/^[A-Za-z0-9_]{1,60}$/.test(k) && (typeof v === 'string' || typeof v === 'number')) intel[k] = str(v, 5000);
+    }
+    out.aiIntelligence = intel;
+  }
+  return out;
+}
+
 // ---- Handlers ----
 async function handleSync(request, env) {
   const url = new URL(request.url);
@@ -108,12 +152,8 @@ async function handlePush(request, env, user) {
   // Last write wins per id; de-duplicate within the request.
   const byId = new Map();
   for (const rec of records) {
-    const id = Number(rec && rec.id);
-    if (!Number.isSafeInteger(id) || id <= 0) throw new HttpError(400, 'Every record needs a positive integer id');
-    if (!rec.name || typeof rec.name !== 'string') throw new HttpError(400, `Record ${id} needs a name`);
-    const clean = { ...rec };
-    delete clean._rev;
-    byId.set(id, clean);
+    const clean = normalizeRecord(rec);
+    byId.set(clean.id, clean);
   }
   const items = [...byId.entries()];
 
