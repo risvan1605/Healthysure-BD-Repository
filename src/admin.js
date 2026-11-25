@@ -13,9 +13,11 @@ const ITERATIONS = 100000;            // Workers' PBKDF2 maximum
 const MIN_PASSWORD_LENGTH = 10;
 const WINDOW_SECONDS = 15 * 60;
 const MAX_FAILS_PER_USER = 5;
-// Backstop against many-mailbox guessing: ~8 different people failing at once trips it. It never
-// applies to password changes or to users who already passed the check in the window.
-const MAX_FAILS_GLOBAL = 40;
+// Global backstops against many-mailbox guessing, counted separately per action class so a flood of
+// export guesses cannot block a password change, and password-change guessing is capped too.
+// Users who already passed the check in the window are exempt from both.
+const MAX_FAILS_GLOBAL = 40;          // export checks: ~8 different people failing at once trips it
+const MAX_CHANGE_FAILS_GLOBAL = 10;   // password-change checks: stricter, rarely used
 const ACTIONS = new Set(['excel_export', 'crm_export', 'change_password']);
 
 const enc = new TextEncoder();
@@ -56,12 +58,13 @@ async function reserveAttempt(env, email, ip, action) {
      SELECT ?1, ?2, ?3, 0, ?4
      WHERE (SELECT COUNT(*) FROM admin_audit WHERE email = ?1 AND ok = 0 AND created_at > ?5) < ?6
        AND (
-         ?3 = 'change_password'
-         OR EXISTS (SELECT 1 FROM admin_audit WHERE email = ?1 AND ok = 1 AND created_at > ?5)
-         OR (SELECT COUNT(*) FROM admin_audit WHERE ok = 0 AND created_at > ?5) < ?7
+         EXISTS (SELECT 1 FROM admin_audit WHERE email = ?1 AND ok = 1 AND created_at > ?5)
+         OR (SELECT COUNT(*) FROM admin_audit
+             WHERE ok = 0 AND created_at > ?5 AND (action = 'change_password') = (?3 = 'change_password'))
+            < (CASE WHEN ?3 = 'change_password' THEN ?8 ELSE ?7 END)
        )
      RETURNING id`
-  ).bind(email, ip, action, now, now - WINDOW_SECONDS, MAX_FAILS_PER_USER, MAX_FAILS_GLOBAL).first();
+  ).bind(email, ip, action, now, now - WINDOW_SECONDS, MAX_FAILS_PER_USER, MAX_FAILS_GLOBAL, MAX_CHANGE_FAILS_GLOBAL).first();
   if (!row) throw new AuthError(429, 'Too many incorrect attempts. Try again in a few minutes.');
   return row.id;
 }
