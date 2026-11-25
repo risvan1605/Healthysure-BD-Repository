@@ -2,7 +2,7 @@
 //   POST /api/admin/verify    {password, action}            -> {ok:true} or 401/429
 //   POST /api/admin/password  {current, next}               -> changes the password
 //
-// The password is never in client code. Wrong guesses are throttled per user and per IP, and every
+// The password is never in client code. Wrong guesses are throttled per signed-in user (atomically), and every
 // check is written to admin_audit (who / when / what / success).
 // NOTE: this controls *who may trigger* an export; the company data itself is already loaded in a
 // signed-in user's browser, so this is an accountability + friction control, not data isolation.
@@ -13,7 +13,6 @@ const ITERATIONS = 100000;            // Workers' PBKDF2 maximum
 const MIN_PASSWORD_LENGTH = 10;
 const WINDOW_SECONDS = 15 * 60;
 const MAX_FAILS_PER_USER = 5;
-const MAX_FAILS_PER_IP = 15;
 const ACTIONS = new Set(['excel_export', 'crm_export', 'change_password']);
 
 const enc = new TextEncoder();
@@ -41,17 +40,34 @@ async function checkPassword(env, password) {
   return constantTimeEquals(password, env.ADMIN_PASSWORD);
 }
 
-async function audit(env, email, ip, action, ok) {
+// Reserve an attempt *atomically* before the password is checked: one SQL statement inserts a
+// pending (ok = 0) row only while this user is under the limit. Parallel guesses therefore cannot
+// all pass a check-then-insert gap. The row is flipped to ok = 1 if the password turns out correct.
+// Throttling is per signed-in user only (an office/VPN shares one IP, so IP lockouts would let one
+// person block everyone); the IP is recorded in the audit log for investigation.
+async function reserveAttempt(env, email, ip, action) {
   const now = nowSec();
-  await env.DB.prepare('INSERT INTO admin_audit (email, ip, action, ok, created_at) VALUES (?1, ?2, ?3, ?4, ?5)').bind(email, ip, action, ok ? 1 : 0, now).run();
+  const row = await env.DB.prepare(
+    `INSERT INTO admin_audit (email, ip, action, ok, created_at)
+     SELECT ?1, ?2, ?3, 0, ?4
+     WHERE (SELECT COUNT(*) FROM admin_audit WHERE email = ?1 AND ok = 0 AND created_at > ?5) < ?6
+     RETURNING id`
+  ).bind(email, ip, action, now, now - WINDOW_SECONDS, MAX_FAILS_PER_USER).first();
+  if (!row) throw new AuthError(429, 'Too many incorrect attempts. Try again in a few minutes.');
+  return row.id;
 }
 
-async function throttle(env, email, ip) {
-  const since = nowSec() - WINDOW_SECONDS;
-  const count = async (col, val) => (await env.DB.prepare(`SELECT COUNT(*) c FROM admin_audit WHERE ${col} = ? AND ok = 0 AND created_at > ?`).bind(val, since).first()).c;
-  if ((await count('email', email)) >= MAX_FAILS_PER_USER || (await count('ip', ip)) >= MAX_FAILS_PER_IP) {
-    throw new AuthError(429, 'Too many incorrect attempts. Try again in a few minutes.');
+// Runs the password check for a reserved attempt and records the outcome.
+async function checkReserved(env, attemptId, password) {
+  let ok;
+  try {
+    ok = await checkPassword(env, password);
+  } catch (err) {
+    await env.DB.prepare('DELETE FROM admin_audit WHERE id = ?').bind(attemptId).run(); // config error, not a guess
+    throw err;
   }
+  if (ok) await env.DB.prepare('UPDATE admin_audit SET ok = 1 WHERE id = ?').bind(attemptId).run();
+  return ok;
 }
 
 const ipOf = (request) => request.headers.get('CF-Connecting-IP') || 'unknown';
@@ -59,23 +75,19 @@ const ipOf = (request) => request.headers.get('CF-Connecting-IP') || 'unknown';
 export async function handleAdminVerify(request, env, user, body) {
   const action = body && body.action;
   if (!ACTIONS.has(action) || action === 'change_password') throw new AuthError(400, 'Unknown action');
-  const ip = ipOf(request);
-  await throttle(env, user, ip);
-  const ok = await checkPassword(env, body && body.password);
-  await audit(env, user, ip, action, ok);
+  const attemptId = await reserveAttempt(env, user, ipOf(request), action);
+  const ok = await checkReserved(env, attemptId, body && body.password);
   if (!ok) throw new AuthError(401, 'Incorrect admin password');
   return { ok: true };
 }
 
 export async function handleAdminPasswordChange(request, env, user, body) {
-  const ip = ipOf(request);
   const next = body && body.next;
   if (typeof next !== 'string' || next.length < MIN_PASSWORD_LENGTH || next.length > 200) {
     throw new AuthError(400, `New password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
-  await throttle(env, user, ip);
-  const ok = await checkPassword(env, body && body.current);
-  await audit(env, user, ip, 'change_password', ok);
+  const attemptId = await reserveAttempt(env, user, ipOf(request), 'change_password');
+  const ok = await checkReserved(env, attemptId, body && body.current);
   if (!ok) throw new AuthError(401, 'Current admin password is incorrect');
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
