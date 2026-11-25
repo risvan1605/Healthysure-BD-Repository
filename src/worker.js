@@ -5,6 +5,7 @@
 //   POST /api/feedback           -> founder review notes
 //   POST /api/prospeo            -> proxy to Prospeo (avoids browser CORS)
 
+import { handleAdminPasswordChange, handleAdminVerify } from './admin.js';
 import { AuthError, LOGIN_HTML, clearSessionCookie, destroySession, getSessionUser, requestCode, verifyCode } from './auth.js';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -220,6 +221,8 @@ export default {
         case 'POST /api/companies': return withHeaders(await handlePush(request, env, user));
         case 'POST /api/feedback': return withHeaders(await handleFeedback(request, env, user));
         case 'POST /api/prospeo': return withHeaders(await handleProspeo(request));
+        case 'POST /api/admin/verify': return withHeaders(json(await handleAdminVerify(request, env, user, await readJson(request))));
+        case 'POST /api/admin/password': return withHeaders(json(await handleAdminPasswordChange(request, env, user, await readJson(request))));
         case 'GET /api/me': return withHeaders(json({ user }));
         default: return withHeaders(json({ error: 'Not found' }, 404));
       }

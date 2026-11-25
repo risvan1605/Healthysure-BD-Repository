@@ -13,10 +13,8 @@
       sessionStorage.removeItem('hs_bd_auth');
       localStorage.removeItem('hs_bd_login_hash');
       localStorage.removeItem('hs_bd_login_b64');
-      if (localStorage.getItem('hs_admin_password_hash') === 'ffcfa9389f6a158158c4ea27c5bf559e7fe6569476f8f4112bf0408c646a3d58') {
-        localStorage.removeItem('hs_admin_password_hash');
-        localStorage.removeItem('hs_admin_password_b64');
-      }
+      localStorage.removeItem('hs_admin_password_hash');
+      localStorage.removeItem('hs_admin_password_b64');
     } catch(e){}
   </script>
 

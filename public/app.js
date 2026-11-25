@@ -1354,7 +1354,7 @@ async function executeCrmExport() {
   const pass = passInput ? passInput.value.trim() : '';
   const errEl = document.getElementById('crmExportPasswordError');
 
-  const isValid = await verifyAdminPassword(pass);
+  const isValid = await verifyAdminPassword(pass, 'crm_export');
   if (!isValid) {
     if (errEl) errEl.classList.remove('hidden');
     if (passInput) passInput.focus();
@@ -1887,7 +1887,7 @@ function togglePasswordVisibility(inputId) {
 
 async function executeAdminAuthorizedExport() {
   const pass = document.getElementById('adminExportPasswordInput').value.trim();
-  const isValid = await verifyAdminPassword(pass);
+  const isValid = await verifyAdminPassword(pass, 'excel_export');
 
   if (!isValid) {
     document.getElementById('adminExportPasswordError').classList.remove('hidden');
@@ -3693,17 +3693,29 @@ async function sha256Hex(str) {
   }
 }
 
-// 1. Portal Login Password
-function getAdminPasswordHash() {
-  return localStorage.getItem('hs_admin_password_hash') || '9c736d9194342b6d78a4a8322682d420c9a24a32d167e83bf20a137e798d3869';
-}
-
-async function verifyAdminPassword(inputPass) {
+// Admin password: checked on the server (/api/admin/verify). Nothing about it is stored in the browser.
+// action: 'excel_export' | 'crm_export' (recorded in the server audit log with the user's email)
+async function verifyAdminPassword(inputPass, action) {
   if (!inputPass) return false;
-  const hash = await sha256Hex(inputPass);
-  const targetHash = getAdminPasswordHash();
-  const fallbackB64 = localStorage.getItem('hs_admin_password_b64') || 'VmltbGVuZHVAMTIzNA==';
-  return (hash === targetHash || btoa(inputPass) === fallbackB64);
+  try {
+    const res = await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: inputPass, action })
+    });
+    if (res.status === 401) {
+      let msg = '';
+      try { msg = (await res.json()).error || ''; } catch (e) {}
+      if (/Not signed in/i.test(msg)) { location.href = '/login'; return false; }
+      return false;
+    }
+    if (res.status === 429) { showToast('Too many incorrect attempts. Try again in a few minutes.', 'error'); return false; }
+    if (!res.ok) { showToast('Could not check the admin password (server error).', 'error'); return false; }
+    return true;
+  } catch (e) {
+    showToast('Could not reach the server to check the admin password.', 'error');
+    return false;
+  }
 }
 
 function openAdminPasswordChangeDirect() {
@@ -3726,19 +3738,10 @@ async function changeAdminPassword() {
     return;
   }
 
-  const isValidCurrent = await verifyAdminPassword(currentPass);
-  if (!isValidCurrent) {
+  if (newPass.length < 10) {
     if (msgEl) {
       msgEl.className = 'text-[#a80000] text-[11px] font-medium block';
-      msgEl.textContent = 'Current Admin Password is incorrect.';
-    }
-    return;
-  }
-
-  if (newPass.length < 6) {
-    if (msgEl) {
-      msgEl.className = 'text-[#a80000] text-[11px] font-medium block';
-      msgEl.textContent = 'New password must be at least 6 characters long.';
+      msgEl.textContent = 'New password must be at least 10 characters long.';
     }
     return;
   }
@@ -3751,9 +3754,29 @@ async function changeAdminPassword() {
     return;
   }
 
-  const newHash = await sha256Hex(newPass);
-  localStorage.setItem('hs_admin_password_hash', newHash);
-  localStorage.setItem('hs_admin_password_b64', btoa(newPass));
+  let errText = '';
+  try {
+    const res = await fetch('/api/admin/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current: currentPass, next: newPass })
+    });
+    if (!res.ok) {
+      try { errText = (await res.json()).error || ''; } catch (e) {}
+      if (res.status === 401 && /Not signed in/i.test(errText)) { location.href = '/login'; return; }
+      errText = errText || `Could not update the password (${res.status}).`;
+    }
+  } catch (e) {
+    errText = 'Could not reach the server.';
+  }
+
+  if (errText) {
+    if (msgEl) {
+      msgEl.className = 'text-[#a80000] text-[11px] font-medium block';
+      msgEl.textContent = errText;
+    }
+    return;
+  }
 
   document.getElementById('inputCurrentAdminPassword').value = '';
   document.getElementById('inputNewAdminPassword').value = '';
